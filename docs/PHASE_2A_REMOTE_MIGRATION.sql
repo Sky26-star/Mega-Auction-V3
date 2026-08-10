@@ -1,8 +1,8 @@
 -- ==============================================================================
--- MEGA AUCTION V1 — COMBINED PHASE 2A MIGRATION SCRIPT
+-- MEGA AUCTION V1 — COMBINED PHASE 2A MIGRATION SCRIPT (CORRECTED)
 -- Destination: docs/PHASE_2A_REMOTE_MIGRATION.sql
 -- Description: Single combined SQL script preserving the exact SQL statements from
---              the 5 approved Phase 2A migration files for execution in Supabase Dashboard SQL Editor.
+--              the 5 corrected Phase 2A migration files for execution in Supabase Dashboard SQL Editor.
 -- ==============================================================================
 
 -- ==============================================================================
@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   username TEXT UNIQUE NOT NULL,
   display_name TEXT NOT NULL,
-  avatar_url TEXT NULLABLE,
+  avatar_url TEXT,
   is_admin BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS public.rooms (
 CREATE TABLE IF NOT EXISTS public.player_sets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
-  description TEXT NULLABLE,
+  description TEXT,
   created_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   is_public BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS public.players (
   category TEXT NOT NULL DEFAULT 'C' CHECK (category IN ('MARQUEE', 'A', 'B', 'C', 'D')),
   base_price INT NOT NULL CHECK (base_price >= 1),
   is_overseas BOOLEAN NOT NULL DEFAULT false,
-  image_url TEXT NULLABLE,
+  image_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -68,8 +68,8 @@ CREATE TABLE IF NOT EXISTS public.players (
 CREATE TABLE IF NOT EXISTS public.room_participants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   room_id UUID NOT NULL REFERENCES public.rooms(id) ON DELETE CASCADE,
-  user_id UUID NULLABLE REFERENCES public.profiles(id) ON DELETE CASCADE,
-  team_id UUID NULLABLE, -- FK to teams created in 00002
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  team_id UUID, -- FK to teams created in 00002
   role TEXT NOT NULL DEFAULT 'MEMBER' CHECK (role IN ('HOST', 'MEMBER', 'SPECTATOR')),
   is_bot BOOLEAN NOT NULL DEFAULT false,
   is_connected BOOLEAN NOT NULL DEFAULT true,
@@ -89,15 +89,15 @@ CREATE TABLE IF NOT EXISTS public.auctions (
   room_id UUID NOT NULL UNIQUE REFERENCES public.rooms(id) ON DELETE CASCADE,
   player_set_id UUID NOT NULL REFERENCES public.player_sets(id) ON DELETE RESTRICT,
   status TEXT NOT NULL DEFAULT 'LOBBY' CHECK (status IN ('LOBBY','READY','STARTING','IN_PROGRESS','PAUSED','COMPLETED','CANCELLED')),
-  current_lot_id UUID NULLABLE, -- FK added after auction_lots
+  current_lot_id UUID, -- FK added after auction_lots
   current_lot_index INT NOT NULL DEFAULT 0,
   total_lots INT NOT NULL DEFAULT 0,
   current_sequence INT NOT NULL DEFAULT 0,
   is_unsold_round BOOLEAN NOT NULL DEFAULT false,
-  paused_by UUID NULLABLE REFERENCES public.profiles(id) ON DELETE SET NULL,
-  paused_reason TEXT NULLABLE,
-  started_at TIMESTAMPTZ NULLABLE,
-  completed_at TIMESTAMPTZ NULLABLE,
+  paused_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  paused_reason TEXT,
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -131,11 +131,11 @@ CREATE TABLE IF NOT EXISTS public.auction_lots (
   status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','ACTIVE','BIDDING','SOLD','UNSOLD','SKIPPED')),
   base_price INT NOT NULL CHECK (base_price >= 1),
   current_bid INT NOT NULL DEFAULT 0,
-  highest_bidder_team_id UUID NULLABLE REFERENCES public.teams(id) ON DELETE SET NULL,
-  winning_team_id UUID NULLABLE REFERENCES public.teams(id) ON DELETE SET NULL,
-  winning_bid INT NULLABLE,
+  highest_bidder_team_id UUID REFERENCES public.teams(id) ON DELETE SET NULL,
+  winning_team_id UUID REFERENCES public.teams(id) ON DELETE SET NULL,
+  winning_bid INT,
   timer_duration_seconds INT NOT NULL DEFAULT 15,
-  timer_expires_at TIMESTAMPTZ NULLABLE,
+  timer_expires_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT unique_auction_lot_index UNIQUE(auction_id, lot_index)
 );
@@ -167,7 +167,7 @@ CREATE TABLE IF NOT EXISTS public.bids (
   request_id UUID NOT NULL UNIQUE,
   is_bot BOOLEAN NOT NULL DEFAULT false,
   is_valid BOOLEAN NOT NULL DEFAULT true,
-  rejection_reason TEXT NULLABLE,
+  rejection_reason TEXT,
   bid_number INT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -179,7 +179,7 @@ CREATE TABLE IF NOT EXISTS public.auction_events (
   sequence INT NOT NULL,
   event_type TEXT NOT NULL,
   payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-  actor_id UUID NULLABLE REFERENCES public.profiles(id) ON DELETE SET NULL,
+  actor_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT unique_auction_sequence UNIQUE(auction_id, sequence)
 );
@@ -192,7 +192,7 @@ CREATE TABLE IF NOT EXISTS public.bot_lot_state (
   is_interested BOOLEAN NOT NULL DEFAULT true,
   max_per_player_budget INT NOT NULL,
   has_bid_current_price BOOLEAN NOT NULL DEFAULT false,
-  next_bid_eligible_at TIMESTAMPTZ NULLABLE,
+  next_bid_eligible_at TIMESTAMPTZ,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT unique_bot_lot_team UNIQUE(lot_id, team_id)
 );

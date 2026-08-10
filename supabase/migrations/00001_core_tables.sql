@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   username TEXT UNIQUE NOT NULL,
   display_name TEXT NOT NULL,
-  avatar_url TEXT NULLABLE,
+  avatar_url TEXT,
   is_admin BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS public.rooms (
 CREATE TABLE IF NOT EXISTS public.player_sets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
-  description TEXT NULLABLE,
+  description TEXT,
   created_by UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   is_public BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS public.players (
   category TEXT NOT NULL DEFAULT 'C' CHECK (category IN ('MARQUEE', 'A', 'B', 'C', 'D')),
   base_price INT NOT NULL CHECK (base_price >= 1),
   is_overseas BOOLEAN NOT NULL DEFAULT false,
-  image_url TEXT NULLABLE,
+  image_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -60,8 +60,8 @@ CREATE TABLE IF NOT EXISTS public.players (
 CREATE TABLE IF NOT EXISTS public.room_participants (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   room_id UUID NOT NULL REFERENCES public.rooms(id) ON DELETE CASCADE,
-  user_id UUID NULLABLE REFERENCES public.profiles(id) ON DELETE CASCADE,
-  team_id UUID NULLABLE, -- FK to teams created in 00002
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  team_id UUID, -- FK to teams created in 00002
   role TEXT NOT NULL DEFAULT 'MEMBER' CHECK (role IN ('HOST', 'MEMBER', 'SPECTATOR')),
   is_bot BOOLEAN NOT NULL DEFAULT false,
   is_connected BOOLEAN NOT NULL DEFAULT true,
