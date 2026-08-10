@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 
-describe('Phase 2A Database Schema & Policies Verification', () => {
+describe('Phase 2A Static SQL Migration & Schema Specification Verification', () => {
   const migrationsDir = path.resolve(__dirname, '../../../supabase/migrations');
   
   const migrationFiles = [
@@ -14,12 +14,17 @@ describe('Phase 2A Database Schema & Policies Verification', () => {
   ];
 
   let combinedSql = '';
+  let indexSql = '';
 
   beforeAll(() => {
     migrationFiles.forEach((file) => {
       const filePath = path.join(migrationsDir, file);
       expect(fs.existsSync(filePath)).toBe(true);
-      combinedSql += fs.readFileSync(filePath, 'utf-8') + '\n';
+      const content = fs.readFileSync(filePath, 'utf-8');
+      combinedSql += content + '\n';
+      if (file === '00003_indexes.sql') {
+        indexSql = content;
+      }
     });
   });
 
@@ -57,7 +62,13 @@ describe('Phase 2A Database Schema & Policies Verification', () => {
     expect(combinedSql).toContain('last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW()');
   });
 
-  it('5. Enables Row Level Security (RLS) on all 12 tables', () => {
+  it('5. Defines exactly 22 custom performance indexes in 00003_indexes.sql', () => {
+    const createIndexMatches = indexSql.match(/CREATE INDEX IF NOT EXISTS/g);
+    expect(createIndexMatches).not.toBeNull();
+    expect(createIndexMatches?.length).toBe(22);
+  });
+
+  it('6. Enables Row Level Security (RLS) on all 12 tables', () => {
     const rlsTables = [
       'public.profiles',
       'public.rooms',
@@ -78,7 +89,7 @@ describe('Phase 2A Database Schema & Policies Verification', () => {
     });
   });
 
-  it('6. Strictly excludes Phase 2B RPC functions and business logic', () => {
+  it('7. Strictly excludes Phase 2B RPC functions and business logic', () => {
     const prohibitedRpcs = [
       'process_bid',
       'process_lot_expiry',
