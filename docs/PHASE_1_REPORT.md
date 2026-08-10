@@ -14,6 +14,7 @@
 - `c:\megaauction\tailwind.config.ts` — Tailwind CSS configuration with design token CSS variables
 - `c:\megaauction\postcss.config.mjs` — PostCSS configuration for Tailwind
 - `c:\megaauction\components.json` — shadcn/ui configuration
+- `c:\megaauction\.eslintrc.json` — ESLint configuration
 - `c:\megaauction\.gitignore` — Git ignore manifest
 - `c:\megaauction\.prettierrc` — Code formatting configuration
 - `c:\megaauction\.editorconfig` — Editor formatting configuration
@@ -21,11 +22,12 @@
 - `c:\megaauction\.env.local` — Local development credentials placeholder
 - `c:\megaauction\.github\workflows\ci.yml` — GitHub Actions CI verification pipeline
 
-### 2. Testing Framework Setup
+### 2. Testing Framework Setup & Baseline Suites
 - `c:\megaauction\vitest.config.ts` — Vitest test runner configuration with JSDOM
 - `c:\megaauction\src\test\setup.ts` — Vitest setup file with Next.js navigation mocks
-- `c:\megaauction\playwright.config.ts` — Playwright end-to-end testing configuration
-- `c:\megaauction\src\test\smoke.test.ts` — Phase 1 smoke test suite
+- `c:\megaauction\playwright.config.ts` — Playwright end-to-end testing configuration with webServer runner
+- `c:\megaauction\src\test\smoke.test.ts` — Phase 1 Vitest unit smoke test suite
+- `c:\megaauction\src\test\e2e\smoke.spec.ts` — Phase 1 Playwright E2E smoke test suite
 
 ### 3. Application Infrastructure & Utilities
 - `c:\megaauction\src\middleware.ts` — Next.js session refresh and route protection middleware
@@ -70,8 +72,14 @@
 
 ## B. FILES MODIFIED
 
-- None (greenfield repository — all files created from scratch).
-- `docs/AUDIT.md` preserved without modification.
+The following files were refined during initial creation to enforce strict mode TypeScript compliance, ESLint rules, and Playwright test runner isolation:
+
+1. `c:\megaauction\src\app\layout.tsx` — Updated `class` attributes to `className` for React JSX standard compliance.
+2. `c:\megaauction\src\lib\supabase\middleware.ts` — Corrected Next.js module import path (`next/server`) and added explicit `CookieOptions` types for `cookiesToSet`.
+3. `c:\megaauction\src\lib\supabase\server.ts` — Added explicit `CookieOptions` types for `cookiesToSet`.
+4. `c:\megaauction\playwright.config.ts` — Added `webServer` configuration (`npm run start` at `http://localhost:3000`) for automated E2E server orchestration.
+5. `c:\megaauction\vitest.config.ts` — Added `exclude: ['src/test/e2e/**']` to isolate Playwright E2E specs from Vitest unit test runner.
+6. `docs/AUDIT.md` preserved without modification.
 
 ---
 
@@ -118,32 +126,34 @@
 - Tailwind dark mode CSS variables configured in `src/app/globals.css`.
 - Supabase SSR cookie storage handling configured in server/middleware helpers.
 - Vitest configured with JSDOM environment and Next.js navigation mocks.
-- Playwright configured for multi-browser E2E testing.
+- Playwright configured for multi-browser E2E testing with automatic Next.js server runner.
 
 ---
 
 ## E. TESTS EXECUTED
 
 1. `npx tsc --noEmit` — Strict TypeScript type verification across all files.
-2. `npx vitest run` — Vitest unit & smoke test suite.
-3. `npx next build` — Next.js 15 production build compilation and static page generation.
+2. `npm run build` — Next.js 15 production build compilation and static page generation.
+3. `npm run lint` — Next.js ESLint verification.
+4. `npm run test:run` — Vitest unit & smoke test suite execution.
+5. `npx playwright test` — Playwright E2E browser smoke test suite execution.
 
 ---
 
 ## F. TEST RESULTS
 
-- **TypeScript Typecheck:** `PASS` (0 errors)
-- **Vitest Smoke Test Suite:** `PASS` (2/2 tests passed)
-  - `loads auction constants properly` -> `PASS`
-  - `instantiates AppError with correct error codes` -> `PASS`
-- **Next.js Production Build:** `PASS` (`✓ Compiled successfully`, `✓ Generating static pages (5/5)`)
+- **TypeScript Typecheck (`npx tsc --noEmit`):** `PASS` (0 errors)
+- **Next.js Production Build (`npm run build`):** `PASS` (`✓ Compiled successfully`, `✓ Generating static pages (5/5)`)
+- **ESLint Audit (`npm run lint`):** `PASS` (`✔ No ESLint warnings or errors`)
+- **Vitest Unit Smoke Test Suite (`npm run test:run`):** `PASS` (`2/2` tests passed in `src/test/smoke.test.ts`)
+- **Playwright E2E Smoke Test Suite (`npx playwright test`):** `PASS` (`1/1` test passed in `src/test/e2e/smoke.spec.ts`)
 
 ---
 
 ## G. KNOWN LIMITATIONS
 
 1. **Supabase Cloud/Local Credentials:** Database migrations and live auth sessions will be implemented in Phase 2A and Phase 3. Environment variables currently use local development placeholders.
-2. **Playwright E2E Runner:** Playwright configuration is verified; end-to-end browser tests will be written during feature phases (Phase 13B+).
+2. **Feature E2E Tests:** Playwright E2E baseline smoke test is active and verified; complex feature E2E tests (bidding, timer sync, room lobby) will be added during feature phases (Phase 13B+).
 
 ---
 
@@ -165,7 +175,7 @@
 
 | Criteria | Status | Verification Method |
 |---|---|---|
-| Next.js application boots | **PASS** | `npx next build` succeeded with 5/5 static pages |
+| Next.js application boots | **PASS** | `npm run build` succeeded with 5/5 static pages |
 | TypeScript strict mode works | **PASS** | `npx tsc --noEmit` passed with 0 errors |
 | Tailwind works | **PASS** | `src/app/globals.css` compiled via PostCSS |
 | shadcn/ui foundation works | **PASS** | `components.json` & `src/lib/utils.ts` created |
@@ -173,11 +183,11 @@
 | Environment validation exists | **PASS** | `src/lib/env.ts` with Zod schema created |
 | Zustand foundation exists | **PASS** | Dependency installed, constants/types created |
 | Zod foundation exists | **PASS** | `src/lib/env.ts` and validation dependencies installed |
-| Vitest works | **PASS** | `npx vitest run` executed with 100% pass rate |
-| Playwright is configured | **PASS** | `playwright.config.ts` created |
+| Vitest works | **PASS** | `npm run test:run` executed with 100% pass rate (2/2 tests) |
+| Playwright is configured & baseline smoke test passes | **PASS** | `npx playwright test` executed with 100% pass rate (1/1 test) |
 | Folder structure matches blueprint | **PASS** | All directories created per Blueprint Section 11 |
 | Documentation structure exists | **PASS** | All 11 living documentation files created in `docs/` |
-| Git is initialized | **PASS** | `.git` repository initialized |
+| Git is initialized | **PASS** | `.git` repository initialized and Phase 1 committed |
 | No secrets are committed | **PASS** | Secrets isolated in `.env.local` (ignored) |
 | No Phase 2+ functionality implemented | **PASS** | Zero database tables, RPCs, or auth UI created |
 
@@ -186,8 +196,8 @@
 ## K. DEFINITION OF DONE
 
 - All Phase 1 tasks completed according to Blueprint v1.1.
-- All verification commands executed cleanly without errors.
-- Phase 1 report produced. Work stopped at Phase 1 gate.
+- All 5 verification commands (`tsc`, `build`, `lint`, `vitest`, `playwright`) executed cleanly with 100% PASS results.
+- Phase 1 report corrected and updated. Work stopped at Phase 1 gate.
 
 ---
 
