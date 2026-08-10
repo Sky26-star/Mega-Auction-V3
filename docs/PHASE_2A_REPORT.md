@@ -1,139 +1,89 @@
-# MEGA AUCTION V1 — PHASE 2A REPORT & ENVIRONMENT AUDIT
+# MEGA AUCTION V1 — PHASE 2A MIGRATION & RLS RUNTIME REPORT
 
-> **Status:** **BLOCKED (Awaiting PostgreSQL / Supabase Environment)**  
+> **Status:** **BLOCKED (Remote Database Migrations Pending DDL Execution)**  
 > **Date:** 2026-08-10  
 > **Phase:** Phase 2A — Database Schema & RLS Policies  
+> **Target Supabase Project:** `https://zkrxuowctprncwnymnvg.supabase.co`
 
 ---
 
-## 1. ENVIRONMENT DETERMINATION RESULT
+## 1. MIGRATION PUSH STATUS & AUDIT
 
-An automated network port probe and configuration audit was executed:
-
-- **Local DB Port 54322 (PostgreSQL Direct):** `ECONNREFUSED` (No service listening)
-- **Local DB Port 54321 (Supabase API Gateway):** `ECONNREFUSED` (No service listening)
-- **Local DB Port 5432 (Standard PostgreSQL):** `ECONNREFUSED` (No service listening)
-- **Credentials in `.env.local`:** Placeholders (`NEXT_PUBLIC_SUPABASE_ANON_KEY=...placeholder_anon_key`, `SUPABASE_SERVICE_ROLE_KEY=...placeholder_service_role`).
-
-### Result
-**No active Supabase development environment or local PostgreSQL container is available.**
-
-### Required Configuration to Unblock Runtime RLS Verification
-To execute live runtime database RLS verification, one of the following environment options is required:
-
-1. **Option A — Local Supabase CLI Docker Container:**
-   - Install and start Docker Desktop.
-   - Run `npx supabase start` in project root.
-   - Update `.env.local` with local keys output by Supabase CLI.
-2. **Option B — Remote Supabase Cloud Project:**
-   - Create a project on [Supabase.com](https://supabase.com).
-   - Apply migrations via `npx supabase db push` or Supabase SQL Editor.
-   - Update `.env.local` with project URL, Anon Key, and Service Role Key.
+- **Local Migration Files:** All 5 migration files (`00001_core_tables.sql` through `00005_rls_policies.sql`) exist, are deterministic, ordered, and conflict-free.
+- **Supabase Project Credentials:** `.env.local` configured with project URL `https://zkrxuowctprncwnymnvg.supabase.co` and Service Role Key.
+- **Remote DB Port Connectivity:** Ports 5432 and 6543 on `db.zkrxuowctprncwnymnvg.supabase.co` are **OPEN & REACHABLE**.
+- **CLI Migration Push Result:** CLI `npx supabase db push` prompts for `SUPABASE_DB_PASSWORD` or `SUPABASE_ACCESS_TOKEN` for remote DDL execution.
+- **Remote PostgREST Audit:** Quering remote database confirmed zero tables created (`404 Not Found`).
 
 ---
 
-## 2. SCHEMA & MIGRATION FILES (VERIFIED)
+## 2. RUNTIME RLS TEST EXECUTION RESULTS
 
-All 5 migration files exist in `supabase/migrations/` and have passed static verification:
+Running `src/test/database/rls.runtime.test.ts` against project `zkrxuowctprncwnymnvg`:
 
-1. `supabase/migrations/00001_core_tables.sql` — Profiles, Rooms, Player Sets, Players, Room Participants
-2. `supabase/migrations/00002_auction_tables.sql` — Auctions, Teams, Auction Lots, Squad Players, Bids, Auction Events, Bot Lot State
-3. `supabase/migrations/00003_indexes.sql` — Performance Query Indexes (22 custom B-Tree indexes)
-4. `supabase/migrations/00004_triggers.sql` — `handle_new_user()` auto profile creation & `set_updated_at()` triggers
-5. `supabase/migrations/00005_rls_policies.sql` — Row Level Security (RLS) policies for all 12 tables
-
----
-
-## 3. TABLES CREATED (12 Core V1 Entities)
-
-1. `public.profiles` — User identity details, handles, avatar URLs, admin flag.
-2. `public.rooms` — Auction room sessions, unique join codes, host settings.
-3. `public.player_sets` — Master player pool collections.
-4. `public.players` — Individual player records (role, category, base price, overseas flag).
-5. `public.room_participants` — Presence, team placement, and connection heartbeat (`last_seen_at`).
-6. `public.auctions` — Active auction session state, lot pointers, sequence counter (`current_sequence`).
-7. `public.teams` — Team budget tracking (`purse`), roster counts, bot team flags.
-8. `public.auction_lots` — Ordered lot items with reserve prices, high bidders, timer expiry (`timer_expires_at`).
-9. `public.squad_players` — Acquired player roster items and purchase prices.
-10. `public.bids` — Bid submission audit trail with `request_id` UNIQUE idempotency constraint.
-11. `public.auction_events` — Monotonic sequence event store with `UNIQUE(auction_id, sequence)`.
-12. `public.bot_lot_state` — Bot evaluation state, budget ceilings, retry timers per lot/team.
+- **Environment Connection:** **SUCCESS** (`✅ Runtime RLS Environment configured for Supabase Project: https://zkrxuowctprncwnymnvg.supabase.co`).
+- **Auth User Provisioning:** **SUCCESS** (Created test users `User A` and `User B` via `auth.admin.createUser`).
+- **Table Query Execution:** **BLOCKED ON DDL MIGRATIONS**
+  - **Exact Runtime Error:** `Player set setup failed: Could not find the table 'public.player_sets' in the schema cache`
 
 ---
 
-## 4. INDEX COUNT VERIFICATION (EXACT AUDIT)
+## 3. UNBLOCKING INSTRUCTIONS FOR USER
 
-- **Custom B-Tree Indexes in `00003_indexes.sql`:** Exactly **22 Indexes** (`idx_rooms_code`, `idx_rooms_host`, `idx_rooms_status`, `idx_room_participants_room_user`, `idx_room_participants_team`, `idx_room_participants_last_seen`, `idx_players_set`, `idx_players_role`, `idx_players_category`, `idx_auctions_room`, `idx_auctions_status`, `idx_teams_auction`, `idx_auction_lots_auction`, `idx_auction_lots_status`, `idx_auction_lots_timer_expires`, `idx_squad_players_team`, `idx_squad_players_auction`, `idx_bids_lot`, `idx_bids_auction`, `idx_bids_team`, `idx_auction_events_seq`, `idx_bot_lot_state_eligible`).
-- **Implicit UNIQUE Constraint Indexes:** **9 Indexes** (`profiles_username_key`, `rooms_code_key`, `unique_room_user`, `unique_auction_team_name`, `unique_auction_lot_index`, `unique_auction_player`, `bids_request_id_key`, `unique_auction_sequence`, `unique_bot_lot_team`).
+To apply the 5 SQL migration files and unblock the 7 runtime RLS tests, please perform ONE of the following two options:
 
----
+### Option A — Run Migration Scripts in Supabase Dashboard (Recommended — 2 mins)
+1. Open the [Supabase SQL Editor](https://supabase.com/dashboard/project/zkrxuowctprncwnymnvg/sql).
+2. Execute the contents of the 5 migration files in order:
+   - `supabase/migrations/00001_core_tables.sql`
+   - `supabase/migrations/00002_auction_tables.sql`
+   - `supabase/migrations/00003_indexes.sql`
+   - `supabase/migrations/00004_triggers.sql`
+   - `supabase/migrations/00005_rls_policies.sql`
 
-## 5. CONSTRAINTS & TIME SEMANTICS
-
-- **Bid Idempotency:** `bids.request_id` enforces `UUID NOT NULL UNIQUE`. Duplicate client request IDs are rejected at database level.
-- **Realtime Event Sequence:** `auction_events` enforces `CONSTRAINT unique_auction_sequence UNIQUE(auction_id, sequence)` and `auctions.current_sequence INT NOT NULL DEFAULT 0`.
-- **Heartbeat & Business-Time Rule:** `room_participants.last_seen_at` is initialized with `DEFAULT NOW()`. All Phase 2B RPCs updating `last_seen_at` MUST explicitly execute `last_seen_at = clock_timestamp()` and all abandonment checks MUST compare against `clock_timestamp()`. `NOW()` / `CURRENT_TIMESTAMP` MUST NOT be used for real-time staleness or timer expiry evaluation.
-- **Value Integrity:** `teams.purse`, `teams.initial_purse`, `teams.players_bought`, and `teams.overseas_count` include `CHECK >= 0`. `players.base_price`, `auction_lots.base_price`, `bids.amount`, and `squad_players.purchase_price` include `CHECK >= 1`.
-
----
-
-## 6. ROW LEVEL SECURITY (RLS) VERIFICATION STATUS
-
-### A. Static Migration & Policy Specification (PASSED)
-- Executed via Vitest (`src/test/database/schema.test.ts`): **7/7 PASS**.
-- Confirms RLS is enabled on all 12 tables and policies are correctly declared in SQL.
-
-### B. Live PostgreSQL Engine Runtime RLS Tests (BLOCKED)
-- Test 1: User A accesses Room A → ALLOWED (**BLOCKED — No DB connection**)
-- Test 2: User A attempts access Room B → DENIED (**BLOCKED — No DB connection**)
-- Test 3: Non-host host-only mutation → DENIED (**BLOCKED — No DB connection**)
-- Test 4: User mutates other profile → DENIED (**BLOCKED — No DB connection**)
-- Test 5: User direct bot_lot_state mutation → DENIED (**BLOCKED — No DB connection**)
-- Test 6: Unrelated room participant auction access → DENIED (**BLOCKED — No DB connection**)
-- Test 7: Authorized participant room auction access → ALLOWED (**BLOCKED — No DB connection**)
+### Option B — Provide Database Password in `.env.local`
+1. Add `SUPABASE_DB_PASSWORD=<YOUR_DATABASE_PASSWORD>` to `c:\megaauction\.env.local`.
+2. Run `npx supabase db push --db-url postgres://postgres:<YOUR_DATABASE_PASSWORD>@db.zkrxuowctprncwnymnvg.supabase.co:5432/postgres`.
 
 ---
 
-## 7. OPEN ISSUES
+## 4. APPLICATION VERIFICATION SUITE RESULTS
 
-1. **OPEN ISSUE — Missing Database Runtime Environment:** Runtime verification of RLS policies, query denial behaviors, and constraint execution against an actual PostgreSQL engine is currently blocked because no local or remote Supabase database service is configured.
-
----
-
-## 8. BLUEPRINT DEVIATIONS
-
-- None. All 12 tables, constraints, indexes, triggers, and RLS policies match Final Implementation Blueprint v1.1.
+- **TypeScript Typecheck (`npx tsc --noEmit`):** `PASS` (0 errors)
+- **Next.js Production Build (`npm run build`):** `PASS` (`✓ Compiled successfully`, `✓ Generating static pages (5/5)`)
+- **ESLint Audit (`npm run lint`):** `PASS` (`✔ No ESLint warnings or errors`)
+- **Vitest Unit & Schema Test Suite (`npm run test:run`):** `PASS` (`10/10` active tests passed: 7 static schema tests + 2 smoke tests + 1 environment check)
+- **Playwright E2E Smoke Test (`npx playwright test`):** `PASS` (`1/1` test passed in `src/test/e2e/smoke.spec.ts`)
 
 ---
 
-## 9. ACCEPTANCE CRITERIA CHECKLIST
+## 5. ACCEPTANCE CRITERIA CHECKLIST
 
 | Criteria | Status | Verification Method |
 |---|---|---|
-| All approved V1 tables exist | **PASS** | `00001` & `00002` migrations define all 12 tables |
-| Relationships & FKs correct | **PASS** | Explicit `REFERENCES` and `ON DELETE` rules defined |
-| Constraints correct | **PASS** | `CHECK >= 0`, `CHECK >= 1`, `UNIQUE` constraints verified |
-| Custom Indexes created | **PASS** | `00003_indexes.sql` defines 22 custom indexes |
+| All approved V1 tables defined | **PASS** | `00001` & `00002` migrations define all 12 tables |
+| Foreign keys & constraints correct | **PASS** | Checked via static schema tests (`schema.test.ts`) |
+| 22 Custom B-Tree Indexes created | **PASS** | `00003_indexes.sql` verified (22 custom + 9 UNIQUE) |
 | RLS enabled & policies defined | **PASS** | `00005_rls_policies.sql` enables RLS on all 12 tables |
 | Idempotency schema exists | **PASS** | `bids.request_id` UNIQUE constraint verified |
 | Realtime sequence schema exists | **PASS** | `auction_events.sequence` UNIQUE constraint verified |
-| Participant heartbeat schema exists | **PASS** | `room_participants.last_seen_at` verified |
-| Migrations repeatable from clean DB | **PASS** | Clean SQL migration files created in `supabase/migrations/` |
-| Static Schema Tests Pass | **PASS** | `npm run test:run` passed with 100% success rate (8/8 tests) |
-| Runtime DB RLS Tests | **BLOCKED** | Requires live Supabase / PostgreSQL database instance |
-| No Phase 2B RPCs created | **PASS** | Verified zero RPC functions defined in migrations |
-| No auction business logic implemented | **PASS** | Boundary strictly respected |
-| No UI or bots implemented | **PASS** | Boundary strictly respected |
+| Heartbeat schema exists | **PASS** | `room_participants.last_seen_at` verified |
+| Static Schema Tests Pass | **PASS** | `npm run test:run` passed (10/10 active tests passed) |
+| Remote Database Migrations | **BLOCKED** | Requires running DDL scripts in Supabase Dashboard or DB password |
+| Live Runtime RLS Tests | **BLOCKED** | Blocked until tables are created on remote database |
+| No Phase 2B RPCs created | **PASS** | Zero RPC functions defined in migrations |
+| No auction business logic implemented | **PASS** | Phase 2B boundary strictly respected |
+| No UI or bots implemented | **PASS** | Phase 2B/3/7/9 boundaries strictly respected |
 
 ---
 
-## 10. FINAL VERDICT
+## 6. FINAL VERDICT
 
-> **Phase 2A Status: BLOCKED.**  
-> Static schema specifications, 22 custom indexes, migration SQL, RLS definitions, and unit tests are complete and green.  
-> Runtime database RLS execution is **BLOCKED** due to missing Supabase PostgreSQL engine credentials.  
+> **Phase 2A Final Verdict: BLOCKED.**  
+> Code, test harness, configuration, static schema tests, and application builds are 100% PASS.  
+> Runtime database RLS test execution is **BLOCKED** because the 5 SQL migration files must be executed against remote project `zkrxuowctprncwnymnvg` via Supabase SQL Editor or DB password.  
 > Work is **STOPPED** at the Phase 2A gate. Do NOT proceed to Phase 2B.
 
 ---
 
-`IMPLEMENT → TEST → VERIFY → DOCUMENT → STOP`
+`MIGRATE → VERIFY → TEST → DOCUMENT → STOP`
