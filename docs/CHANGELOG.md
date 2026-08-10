@@ -1,17 +1,36 @@
 # MEGA AUCTION V1 — CHANGELOG
 
-> **Project Version:** 1.0.0  
-> **Date:** 2026-08-10  
+All notable changes to the Mega Auction V1 project will be documented in this file.
 
 ---
 
 ## [Unreleased]
 
-### Phase 1 — Architecture & Project Foundation (2026-08-10)
-- Initialized documentation structure (`PRD.md`, `SRS.md`, `ARCHITECTURE.md`, `DATABASE.md`, `API.md`, `UI_UX.md`, `DECISIONS.md`, `PROGRESS.md`, `TESTING.md`, `DEPLOYMENT.md`, `CHANGELOG.md`).
-- Preserved `AUDIT.md` historical report from Phase 0.
+---
 
-### Phase 0 — Repository Audit (2026-08-10)
-- Performed thorough repository audit of `c:\megaauction`.
-- Confirmed greenfield (empty) workspace state and full compatibility with Blueprint v1.1.
-- Produced `docs/AUDIT.md`.
+## [0.2.0] - 2026-08-10
+
+### Added — Phase 2A (Database Schema & RLS Policies)
+- Added `supabase/migrations/00001_core_tables.sql` defining `profiles`, `rooms`, `player_sets`, `players`, and `room_participants` tables.
+- Added `supabase/migrations/00002_auction_tables.sql` defining `auctions`, `teams`, `auction_lots`, `squad_players`, `bids`, `auction_events`, and `bot_lot_state` tables.
+- Added `supabase/migrations/00003_indexes.sql` defining query indexes for room lookups, participant presence, bid history, event sequences, and bot states.
+- Added `supabase/migrations/00004_triggers.sql` defining automatic `handle_new_user()` profile generation and `set_updated_at()` maintenance triggers.
+- Added `supabase/migrations/00005_rls_policies.sql` enforcing Row Level Security (RLS) policies on all 12 tables with explicit room and user isolation rules.
+- Added `src/test/database/schema.test.ts` testing schema integrity, constraints, idempotency structure, sequence structure, RLS activation, and RPC isolation.
+- Created `docs/PHASE_2A_REPORT.md` documenting Phase 2A database schema implementation.
+
+---
+
+## [0.1.0] - 2026-08-10
+
+### Added — Phase 1 (Architecture & Project Foundation)
+- Initialized Next.js 15 App Router project structure with strict TypeScript mode.
+- Configured Tailwind CSS design tokens and PostCSS.
+- Initialized shadcn/ui component configuration and utility helpers.
+- Added `@supabase/supabase-js` and `@supabase/ssr` client infrastructure wrappers.
+- Configured Zod environment validation and domain error utilities.
+- Added Zustand state management dependencies, constants, and domain types.
+- Configured Vitest runner with JSDOM and Playwright E2E runner.
+- Added Playwright baseline smoke test suite (`src/test/e2e/smoke.spec.ts`).
+- Created 11 living documentation files in `docs/`.
+- Created `docs/PHASE_1_REPORT.md`.
