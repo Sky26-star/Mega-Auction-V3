@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Mega Auction — Realtime IPL-Style Multiplayer Auction',
+  title: 'Mega Auction Arena — Real-Time Cricket Auction Simulator',
   description: 'Live multiplayer sports auction platform with real-time bidding, server authority, and automated bots.',
 };
 

@@ -15,6 +15,23 @@ ALTER TABLE public.bids ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.auction_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bot_lot_state ENABLE ROW LEVEL SECURITY;
 
+-- Helper Function for RLS room membership checks (bypasses RLS recursion)
+CREATE OR REPLACE FUNCTION public.is_room_participant(p_room_id UUID, p_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.room_participants
+    WHERE room_id = p_room_id AND user_id = p_user_id
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.is_room_participant(UUID, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_room_participant(UUID, UUID) TO authenticated, service_role;
+
 -- 1. PROFILES POLICIES
 CREATE POLICY "Profiles are viewable by everyone" ON public.profiles
   FOR SELECT USING (true);
@@ -35,10 +52,8 @@ CREATE POLICY "Host can update room settings" ON public.rooms
 -- 3. ROOM PARTICIPANTS POLICIES
 CREATE POLICY "Room participants viewable by room members" ON public.room_participants
   FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.room_participants rp
-      WHERE rp.room_id = room_participants.room_id AND rp.user_id = auth.uid()
-    )
+    user_id = auth.uid()
+    OR public.is_room_participant(room_id, auth.uid())
     OR EXISTS (
       SELECT 1 FROM public.rooms r WHERE r.id = room_participants.room_id AND r.host_id = auth.uid()
     )
@@ -88,10 +103,7 @@ CREATE POLICY "Player set owner can modify players" ON public.players
 -- 6. AUCTIONS POLICIES
 CREATE POLICY "Auctions viewable by room participants" ON public.auctions
   FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.room_participants rp
-      WHERE rp.room_id = auctions.room_id AND rp.user_id = auth.uid()
-    )
+    public.is_room_participant(auctions.room_id, auth.uid())
   );
 
 CREATE POLICY "Host can create auction" ON public.auctions
@@ -106,8 +118,7 @@ CREATE POLICY "Teams viewable by room participants" ON public.teams
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.auctions a
-      JOIN public.room_participants rp ON rp.room_id = a.room_id
-      WHERE a.id = teams.auction_id AND rp.user_id = auth.uid()
+      WHERE a.id = teams.auction_id AND public.is_room_participant(a.room_id, auth.uid())
     )
   );
 
@@ -116,8 +127,7 @@ CREATE POLICY "Auction lots viewable by room participants" ON public.auction_lot
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.auctions a
-      JOIN public.room_participants rp ON rp.room_id = a.room_id
-      WHERE a.id = auction_lots.auction_id AND rp.user_id = auth.uid()
+      WHERE a.id = auction_lots.auction_id AND public.is_room_participant(a.room_id, auth.uid())
     )
   );
 
@@ -126,8 +136,7 @@ CREATE POLICY "Squad players viewable by room participants" ON public.squad_play
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.auctions a
-      JOIN public.room_participants rp ON rp.room_id = a.room_id
-      WHERE a.id = squad_players.auction_id AND rp.user_id = auth.uid()
+      WHERE a.id = squad_players.auction_id AND public.is_room_participant(a.room_id, auth.uid())
     )
   );
 
@@ -136,8 +145,7 @@ CREATE POLICY "Bids viewable by room participants" ON public.bids
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.auctions a
-      JOIN public.room_participants rp ON rp.room_id = a.room_id
-      WHERE a.id = bids.auction_id AND rp.user_id = auth.uid()
+      WHERE a.id = bids.auction_id AND public.is_room_participant(a.room_id, auth.uid())
     )
   );
 
@@ -146,8 +154,7 @@ CREATE POLICY "Auction events viewable by room participants" ON public.auction_e
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.auctions a
-      JOIN public.room_participants rp ON rp.room_id = a.room_id
-      WHERE a.id = auction_events.auction_id AND rp.user_id = auth.uid()
+      WHERE a.id = auction_events.auction_id AND public.is_room_participant(a.room_id, auth.uid())
     )
   );
 
@@ -157,7 +164,6 @@ CREATE POLICY "Bot state viewable by room participants" ON public.bot_lot_state
     EXISTS (
       SELECT 1 FROM public.auction_lots al
       JOIN public.auctions a ON a.id = al.auction_id
-      JOIN public.room_participants rp ON rp.room_id = a.room_id
-      WHERE al.id = bot_lot_state.lot_id AND rp.user_id = auth.uid()
+      WHERE al.id = bot_lot_state.lot_id AND public.is_room_participant(a.room_id, auth.uid())
     )
   );

@@ -1,13 +1,5 @@
--- ==============================================================================
--- MEGA AUCTION V1 — COMBINED PHASE 2A MIGRATION SCRIPT (CORRECTED)
--- Destination: docs/PHASE_2A_REMOTE_MIGRATION.sql
--- Description: Single combined SQL script preserving the exact SQL statements from
---              the 5 corrected Phase 2A migration files for execution in Supabase Dashboard SQL Editor.
--- ==============================================================================
-
--- ==============================================================================
--- MIGRATION 00001 — Core Entity Tables
--- ==============================================================================
+﻿-- Migration: 00001_core_tables.sql
+-- Description: Core entity tables for Mega Auction V1 (Profiles, Rooms, Player Sets, Players, Room Participants)
 
 -- 1. PROFILES
 CREATE TABLE IF NOT EXISTS public.profiles (
@@ -79,9 +71,8 @@ CREATE TABLE IF NOT EXISTS public.room_participants (
 );
 
 
--- ==============================================================================
--- MIGRATION 00002 — Auction Session Entity Tables
--- ==============================================================================
+-- Migration: 00002_auction_tables.sql
+-- Description: Auction session entity tables for Mega Auction V1 (Auctions, Teams, Lots, Squad Players, Bids, Events, Bot State)
 
 -- 1. AUCTIONS
 CREATE TABLE IF NOT EXISTS public.auctions (
@@ -198,9 +189,8 @@ CREATE TABLE IF NOT EXISTS public.bot_lot_state (
 );
 
 
--- ==============================================================================
--- MIGRATION 00003 — Performance Query Indexes
--- ==============================================================================
+-- Migration: 00003_indexes.sql
+-- Description: Performance indexes for high-frequency query paths in Mega Auction V1
 
 -- Rooms indexes
 CREATE INDEX IF NOT EXISTS idx_rooms_code ON public.rooms(code);
@@ -245,9 +235,8 @@ CREATE INDEX IF NOT EXISTS idx_auction_events_seq ON public.auction_events(aucti
 CREATE INDEX IF NOT EXISTS idx_bot_lot_state_eligible ON public.bot_lot_state(next_bid_eligible_at) WHERE is_interested = true AND has_bid_current_price = false;
 
 
--- ==============================================================================
--- MIGRATION 00004 — Triggers & Profile Maintenance
--- ==============================================================================
+-- Migration: 00004_triggers.sql
+-- Description: Automated triggers for profile creation and updated_at timestamp maintenance
 
 -- 1. Automatic updated_at Function
 CREATE OR REPLACE FUNCTION public.set_updated_at()
@@ -299,9 +288,8 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 
--- ==============================================================================
--- MIGRATION 00005 — Row Level Security (RLS) Policies
--- ==============================================================================
+-- Migration: 00005_rls_policies.sql
+-- Description: Row Level Security (RLS) policies for all Mega Auction V1 tables
 
 -- Enable RLS on all 12 tables
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -316,6 +304,23 @@ ALTER TABLE public.squad_players ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bids ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.auction_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bot_lot_state ENABLE ROW LEVEL SECURITY;
+
+-- Helper Function for RLS room membership checks (bypasses RLS recursion)
+CREATE OR REPLACE FUNCTION public.is_room_participant(p_room_id UUID, p_user_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.room_participants
+    WHERE room_id = p_room_id AND user_id = p_user_id
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.is_room_participant(UUID, UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_room_participant(UUID, UUID) TO authenticated, service_role;
 
 -- 1. PROFILES POLICIES
 CREATE POLICY "Profiles are viewable by everyone" ON public.profiles
@@ -337,10 +342,8 @@ CREATE POLICY "Host can update room settings" ON public.rooms
 -- 3. ROOM PARTICIPANTS POLICIES
 CREATE POLICY "Room participants viewable by room members" ON public.room_participants
   FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.room_participants rp
-      WHERE rp.room_id = room_participants.room_id AND rp.user_id = auth.uid()
-    )
+    user_id = auth.uid()
+    OR public.is_room_participant(room_id, auth.uid())
     OR EXISTS (
       SELECT 1 FROM public.rooms r WHERE r.id = room_participants.room_id AND r.host_id = auth.uid()
     )
@@ -390,10 +393,7 @@ CREATE POLICY "Player set owner can modify players" ON public.players
 -- 6. AUCTIONS POLICIES
 CREATE POLICY "Auctions viewable by room participants" ON public.auctions
   FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.room_participants rp
-      WHERE rp.room_id = auctions.room_id AND rp.user_id = auth.uid()
-    )
+    public.is_room_participant(auctions.room_id, auth.uid())
   );
 
 CREATE POLICY "Host can create auction" ON public.auctions
@@ -408,8 +408,7 @@ CREATE POLICY "Teams viewable by room participants" ON public.teams
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.auctions a
-      JOIN public.room_participants rp ON rp.room_id = a.room_id
-      WHERE a.id = teams.auction_id AND rp.user_id = auth.uid()
+      WHERE a.id = teams.auction_id AND public.is_room_participant(a.room_id, auth.uid())
     )
   );
 
@@ -418,8 +417,7 @@ CREATE POLICY "Auction lots viewable by room participants" ON public.auction_lot
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.auctions a
-      JOIN public.room_participants rp ON rp.room_id = a.room_id
-      WHERE a.id = auction_lots.auction_id AND rp.user_id = auth.uid()
+      WHERE a.id = auction_lots.auction_id AND public.is_room_participant(a.room_id, auth.uid())
     )
   );
 
@@ -428,8 +426,7 @@ CREATE POLICY "Squad players viewable by room participants" ON public.squad_play
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.auctions a
-      JOIN public.room_participants rp ON rp.room_id = a.room_id
-      WHERE a.id = squad_players.auction_id AND rp.user_id = auth.uid()
+      WHERE a.id = squad_players.auction_id AND public.is_room_participant(a.room_id, auth.uid())
     )
   );
 
@@ -438,8 +435,7 @@ CREATE POLICY "Bids viewable by room participants" ON public.bids
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.auctions a
-      JOIN public.room_participants rp ON rp.room_id = a.room_id
-      WHERE a.id = bids.auction_id AND rp.user_id = auth.uid()
+      WHERE a.id = bids.auction_id AND public.is_room_participant(a.room_id, auth.uid())
     )
   );
 
@@ -448,8 +444,7 @@ CREATE POLICY "Auction events viewable by room participants" ON public.auction_e
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.auctions a
-      JOIN public.room_participants rp ON rp.room_id = a.room_id
-      WHERE a.id = auction_events.auction_id AND rp.user_id = auth.uid()
+      WHERE a.id = auction_events.auction_id AND public.is_room_participant(a.room_id, auth.uid())
     )
   );
 
@@ -459,7 +454,7 @@ CREATE POLICY "Bot state viewable by room participants" ON public.bot_lot_state
     EXISTS (
       SELECT 1 FROM public.auction_lots al
       JOIN public.auctions a ON a.id = al.auction_id
-      JOIN public.room_participants rp ON rp.room_id = a.room_id
-      WHERE al.id = bot_lot_state.lot_id AND rp.user_id = auth.uid()
+      WHERE al.id = bot_lot_state.lot_id AND public.is_room_participant(a.room_id, auth.uid())
     )
   );
+

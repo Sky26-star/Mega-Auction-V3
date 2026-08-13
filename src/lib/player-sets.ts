@@ -1,0 +1,261 @@
+// src/lib/player-sets.ts
+// Supabase Client Service Operations for Player Sets & Players (RLS Enforcement)
+
+import { createClient as createBrowserClient } from './supabase/client';
+import type { PlayerSet, Player, PlayerSetFormInput, PlayerFormInput } from './types/player-set';
+
+/**
+ * Fetch all player sets accessible by the authenticated user.
+ * RLS automatically filters: (is_public = true OR created_by = auth.uid()).
+ * Includes relational count of players.
+ */
+export async function getPlayerSets(): Promise<PlayerSet[]> {
+  const supabase = createBrowserClient();
+
+  const { data: playerSets, error } = await supabase
+    .from('player_sets')
+    .select(`
+      *,
+      players (count)
+    `)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to fetch player sets: ${error.message}`);
+  }
+
+  return (playerSets || []).map((ps: any) => {
+    const count = Array.isArray(ps.players) && ps.players[0] ? (ps.players[0] as { count: number }).count : 0;
+    return {
+      ...ps,
+      player_count: count,
+    };
+  }) as PlayerSet[];
+}
+
+/**
+ * Fetch a single player set by ID with actual player count.
+ * Returns null if not found or unauthorized via RLS.
+ */
+export async function getPlayerSetById(id: string): Promise<PlayerSet | null> {
+  const supabase = createBrowserClient();
+
+  const { data, error } = await supabase
+    .from('player_sets')
+    .select(`
+      *,
+      players (count)
+    `)
+    .eq('id', id)
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  const count = Array.isArray(data.players) && data.players[0] ? (data.players[0] as { count: number }).count : 0;
+
+  return {
+    ...data,
+    player_count: count,
+  } as PlayerSet;
+}
+
+/**
+ * Create a new Player Set.
+ */
+export async function createPlayerSet(input: PlayerSetFormInput): Promise<PlayerSet> {
+  const supabase = createBrowserClient();
+
+  const { data: user } = await supabase.auth.getUser();
+  if (!user.user) {
+    throw new Error('User must be authenticated to create a player set');
+  }
+
+  const { data, error } = await supabase
+    .from('player_sets')
+    .insert({
+      name: input.name,
+      description: input.description || null,
+      is_public: input.is_public ?? false,
+      created_by: user.user.id,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to create player set: ${error.message}`);
+  }
+
+  return {
+    ...data,
+    player_count: 0,
+  } as PlayerSet;
+}
+
+/**
+ * Update an existing Player Set (Owner ONLY).
+ */
+export async function updatePlayerSet(id: string, input: PlayerSetFormInput): Promise<PlayerSet> {
+  const supabase = createBrowserClient();
+
+  const { data, error } = await supabase
+    .from('player_sets')
+    .update({
+      name: input.name,
+      description: input.description || null,
+      is_public: input.is_public ?? false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update player set: ${error.message}`);
+  }
+
+  return {
+    ...data,
+    player_count: 0,
+  } as PlayerSet;
+}
+
+/**
+ * Delete a Player Set (Owner ONLY).
+ */
+export async function deletePlayerSet(id: string): Promise<void> {
+  const supabase = createBrowserClient();
+
+  const { error } = await supabase
+    .from('player_sets')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    throw new Error(`Failed to delete player set: ${error.message}`);
+  }
+}
+
+/**
+ * Fetch all players belonging to a player set.
+ */
+export async function getPlayersBySetId(playerSetId: string): Promise<Player[]> {
+  const supabase = createBrowserClient();
+
+  const { data, error } = await supabase
+    .from('players')
+    .select('*')
+    .eq('player_set_id', playerSetId)
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    throw new Error(`Failed to fetch players: ${error.message}`);
+  }
+
+  return (data || []) as Player[];
+}
+
+/**
+ * Create a single player in a player set.
+ */
+export async function createPlayer(playerSetId: string, input: PlayerFormInput): Promise<Player> {
+  const supabase = createBrowserClient();
+
+  const { data, error } = await supabase
+    .from('players')
+    .insert({
+      player_set_id: playerSetId,
+      name: input.name,
+      role: input.role,
+      category: input.category || 'C',
+      base_price: input.base_price,
+      is_overseas: input.is_overseas ?? false,
+      image_url: input.image_url || null,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to add player: ${error.message}`);
+  }
+
+  return data as Player;
+}
+
+/**
+ * Update an existing player record.
+ */
+export async function updatePlayer(playerId: string, input: PlayerFormInput): Promise<Player> {
+  const supabase = createBrowserClient();
+
+  const { data, error } = await supabase
+    .from('players')
+    .update({
+      name: input.name,
+      role: input.role,
+      category: input.category || 'C',
+      base_price: input.base_price,
+      is_overseas: input.is_overseas ?? false,
+      image_url: input.image_url || null,
+    })
+    .eq('id', playerId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update player: ${error.message}`);
+  }
+
+  return data as Player;
+}
+
+/**
+ * Delete a player from a player set.
+ */
+export async function deletePlayer(playerId: string): Promise<void> {
+  const supabase = createBrowserClient();
+
+  const { error } = await supabase
+    .from('players')
+    .delete()
+    .eq('id', playerId);
+
+  if (error) {
+    throw new Error(`Failed to delete player: ${error.message}`);
+  }
+}
+
+/**
+ * Bulk insert players into a player set in batches of 100.
+ */
+export async function bulkInsertPlayers(playerSetId: string, playersInput: PlayerFormInput[]): Promise<number> {
+  const supabase = createBrowserClient();
+  const BATCH_SIZE = 100;
+  let totalInserted = 0;
+
+  for (let i = 0; i < playersInput.length; i += BATCH_SIZE) {
+    const batch = playersInput.slice(i, i + BATCH_SIZE).map((p) => ({
+      player_set_id: playerSetId,
+      name: p.name,
+      role: p.role,
+      category: p.category || 'C',
+      base_price: p.base_price,
+      is_overseas: p.is_overseas ?? false,
+      image_url: p.image_url || null,
+    }));
+
+    const { data, error } = await supabase
+      .from('players')
+      .insert(batch)
+      .select('id');
+
+    if (error) {
+      throw new Error(`Failed to import player batch starting at row ${i + 1}: ${error.message}`);
+    }
+
+    totalInserted += (data || []).length;
+  }
+
+  return totalInserted;
+}

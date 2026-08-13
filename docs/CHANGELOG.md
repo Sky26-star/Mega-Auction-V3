@@ -8,16 +8,19 @@ All notable changes to the Mega Auction V1 project will be documented in this fi
 
 ---
 
-## [0.2.0] - 2026-08-10
+## [0.2.0] - 2026-08-11
 
 ### Added — Phase 2A (Database Schema & RLS Policies)
 - Added `supabase/migrations/00001_core_tables.sql` defining `profiles`, `rooms`, `player_sets`, `players`, and `room_participants` tables.
 - Added `supabase/migrations/00002_auction_tables.sql` defining `auctions`, `teams`, `auction_lots`, `squad_players`, `bids`, `auction_events`, and `bot_lot_state` tables.
-- Added `supabase/migrations/00003_indexes.sql` defining query indexes for room lookups, participant presence, bid history, event sequences, and bot states.
+- Added `supabase/migrations/00003_indexes.sql` defining 22 performance indexes for room lookups, participant presence, bid history, event sequences, and bot states.
 - Added `supabase/migrations/00004_triggers.sql` defining automatic `handle_new_user()` profile generation and `set_updated_at()` maintenance triggers.
 - Added `supabase/migrations/00005_rls_policies.sql` enforcing Row Level Security (RLS) policies on all 12 tables with explicit room and user isolation rules.
+- Implemented `public.is_room_participant(UUID, UUID)` `SECURITY DEFINER` helper function with `STABLE` volatility and hardened privileges to resolve PostgreSQL `ERROR 42P17` infinite recursion on `room_participants`.
 - Added `src/test/database/schema.test.ts` testing schema integrity, constraints, idempotency structure, sequence structure, RLS activation, and RPC isolation.
-- Created `docs/PHASE_2A_REPORT.md` documenting Phase 2A database schema implementation.
+- Added `src/test/database/rls.runtime.test.ts` testing live runtime database RLS policies against real remote Supabase instance (8/8 PASS).
+- Applied RLS correction migration to remote Supabase development instance (`https://zkrxuowctprncwnymnvg.supabase.co`).
+- Created `docs/PHASE_2A_REPORT.md` documenting Phase 2A database schema and RLS implementation (STATUS: APPROVED).
 
 ---
 
