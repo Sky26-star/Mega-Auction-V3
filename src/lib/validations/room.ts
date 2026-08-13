@@ -26,6 +26,7 @@ export const createRoomSchema = z.object({
     .string()
     .trim()
     .regex(HEX_COLOR_REGEX, 'Color must be a valid 6-digit hex code (e.g. #FF5733)'),
+  bot_count: z.coerce.number().int().min(0, 'Bot count cannot be negative').max(9, 'Bot count cannot exceed 9').default(0).optional(),
 });
 
 export const joinRoomSchema = z.object({

@@ -3,6 +3,7 @@
 
 import { createClient } from './supabase/client';
 import { getCurrentProfile } from './auth';
+import { getUniqueBotIdentities } from './bots';
 import type {
   Room,
   RoomParticipant,
@@ -35,6 +36,9 @@ export function formatRpcError(message: string): string {
   if (message.includes('AUCTION_NOT_LOBBY')) return 'Team identity cannot be changed after the auction starts.';
   if (message.includes('AUCTION_ACTIVE')) return 'Participant removal is only allowed while the auction is in LOBBY state.';
   if (message.includes('CANNOT_REMOVE_HOST')) return 'The host cannot be removed from the room.';
+  if (message.includes('UNAUTHORIZED_NOT_HOST')) return 'Only the room host can provision bot opponents.';
+  if (message.includes('INVALID_BOT_COUNT')) return 'Bot count must be between 0 and 9.';
+  if (message.includes('EXCEEDS_MANAGER_CAPACITY')) return 'Total room managers cannot exceed 10.';
   if (message.includes('UNAUTHORIZED')) return 'You are not authorized to perform this action.';
   return message;
 }
@@ -180,13 +184,25 @@ export async function lookupRoomByCode(code: string): Promise<Room> {
 
 /**
  * Creates a new Room + Host Participant + Auction + Host Team in a single atomic transaction.
- * Calls RPC create_room_with_team().
+ * Also provisions selected bot opponents via trusted SECURITY DEFINER RPC provision_room_bots().
  */
 export async function createRoom(input: CreateRoomInput): Promise<Room> {
   const profile = await getCurrentProfile();
   if (!profile) throw new Error('User must be logged in to create a room');
 
   const supabase = createClient();
+
+  // 1. Determine Bot Opponents Selection (Min 0, Max 9)
+  const requestedBotCount = Math.min(9, Math.max(0, input.bot_count ?? 0));
+  const selectedBots = getUniqueBotIdentities(requestedBotCount, [input.team_name]);
+
+  const botPayload = selectedBots.map((b) => ({
+    id: b.id,
+    name: b.name,
+    shortName: b.shortName,
+    color: b.color,
+    managerName: b.managerName,
+  }));
 
   const roomSettings = {
     timer_duration_seconds: input.timer_duration_seconds,
@@ -196,8 +212,11 @@ export async function createRoom(input: CreateRoomInput): Promise<Room> {
     max_overseas: input.max_overseas,
     player_set_id: input.player_set_id,
     player_order: 'CATEGORY',
+    bot_count: requestedBotCount,
+    bots: botPayload,
   };
 
+  // 2. Call RPC create_room_with_team()
   const { data, error } = await supabase.rpc('create_room_with_team', {
     p_room_name: input.name,
     p_room_settings: roomSettings,
@@ -212,12 +231,31 @@ export async function createRoom(input: CreateRoomInput): Promise<Room> {
     throw new Error(formatRpcError(error.message));
   }
 
-  const createdRoom = await getRoomById(data.room_id);
-  if (!createdRoom) {
-    throw new Error('Room created successfully, but failed to fetch room details.');
+  const roomId = data.room_id;
+
+  // 3. Atomically Provision Bot Opponents via trusted SECURITY DEFINER RPC
+  if (requestedBotCount > 0 && selectedBots.length > 0) {
+    const { error: botRpcError } = await supabase.rpc('provision_room_bots', {
+      p_room_id: roomId,
+      p_bots: botPayload,
+    });
+
+    if (botRpcError) {
+      // Rollback created room if RPC fails
+      await supabase.from('rooms').delete().eq('id', roomId);
+      if (botRpcError.code === 'PGRST202' || botRpcError.message?.includes('schema cache')) {
+        throw new Error('THE RPC MIGRATION MUST BE APPLIED TO THE CONNECTED SUPABASE DATABASE.');
+      }
+      throw new Error(formatRpcError(botRpcError.message));
+    }
   }
 
-  return createdRoom;
+  const finalRoom = await getRoomById(roomId);
+  if (!finalRoom) {
+    throw new Error('Room created successfully, but failed to fetch final room details.');
+  }
+
+  return finalRoom;
 }
 
 /**
@@ -325,3 +363,108 @@ export async function getAuctionTeams(auctionId: string): Promise<Team[]> {
   return (data || []) as Team[];
 }
 
+export interface UpdateRoomInput {
+  name: string;
+  default_purse: number;
+  timer_duration_seconds: number;
+  max_squad_size: number;
+  bot_count?: number;
+}
+
+/**
+ * Updates room configuration (Room Name, Purse, Timer, Squad, Bot Count) for host-owned open rooms.
+ */
+export async function updateRoom(roomId: string, input: UpdateRoomInput): Promise<Room> {
+  const profile = await getCurrentProfile();
+  if (!profile) throw new Error('User must be logged in to update a room');
+
+  const supabase = createClient();
+  const existingRoom = await getRoomById(roomId);
+  if (!existingRoom) throw new Error('Room not found.');
+  if (existingRoom.host_id !== profile.id) throw new Error('Only the room host can edit room settings.');
+  if (existingRoom.status !== 'OPEN') throw new Error('Cannot edit settings after auction has started.');
+
+  const newBotCount = Math.min(9, Math.max(0, input.bot_count ?? existingRoom.settings?.bot_count ?? 0));
+  let updatedBots = (existingRoom.settings?.bots as any[]) || [];
+
+  if (newBotCount !== (existingRoom.settings?.bot_count ?? 0) || updatedBots.length !== newBotCount) {
+    const hostTeamName = existingRoom.host_profile?.display_name || 'Host Franchise';
+    const newBotsSelection = getUniqueBotIdentities(newBotCount, [hostTeamName]);
+    updatedBots = newBotsSelection.map((b) => ({
+      id: b.id,
+      name: b.name,
+      shortName: b.shortName,
+      color: b.color,
+      managerName: b.managerName,
+    }));
+  }
+
+  const newSettings = {
+    ...(existingRoom.settings || {}),
+    default_purse: input.default_purse,
+    timer_duration_seconds: input.timer_duration_seconds,
+    max_squad_size: input.max_squad_size,
+    bot_count: newBotCount,
+    bots: updatedBots,
+  };
+
+  const { error } = await supabase
+    .from('rooms')
+    .update({
+      name: input.name,
+      settings: newSettings,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', roomId)
+    .eq('host_id', profile.id);
+
+  if (error) throw new Error(error.message);
+
+  if (newBotCount > 0 && updatedBots.length > 0) {
+    const { error: botRpcErr } = await supabase.rpc('provision_room_bots', {
+      p_room_id: roomId,
+      p_bots: updatedBots,
+    });
+    if (botRpcErr) {
+      console.warn('Bot re-provisioning RPC failed:', botRpcErr.message);
+    }
+  } else if (newBotCount === 0) {
+    await supabase.from('room_participants').delete().eq('room_id', roomId).eq('is_bot', true);
+    if (existingRoom.auction_id) {
+      await supabase.from('teams').delete().eq('auction_id', existingRoom.auction_id).eq('is_bot', true);
+    }
+  }
+
+  const updated = await getRoomById(roomId);
+  if (!updated) throw new Error('Failed to fetch updated room details.');
+  return updated;
+}
+
+/**
+ * Permanently deletes a room owned by current host.
+ * Triggers SQL ON DELETE CASCADE for associated auctions, teams, and participants.
+ */
+export async function deleteRoom(roomId: string): Promise<void> {
+  const profile = await getCurrentProfile();
+  if (!profile) throw new Error('User must be logged in to delete a room');
+
+  const supabase = createClient();
+  const existingRoom = await getRoomById(roomId);
+  if (!existingRoom) throw new Error('Room not found.');
+  if (existingRoom.host_id !== profile.id) throw new Error('Only the room host can delete this room.');
+
+  // 1. Try trusted delete_room RPC
+  const { error: rpcError } = await supabase.rpc('delete_room', { p_room_id: roomId });
+  if (!rpcError) return;
+
+  // 2. Fallback to direct DELETE query on rooms table
+  const { error: tableError } = await supabase
+    .from('rooms')
+    .delete()
+    .eq('id', roomId)
+    .eq('host_id', profile.id);
+
+  if (tableError) {
+    throw new Error(formatRpcError(tableError.message));
+  }
+}

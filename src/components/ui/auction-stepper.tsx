@@ -6,6 +6,7 @@ import { Minus, Plus } from 'lucide-react';
 
 interface AuctionStepperProps {
   label: string;
+  subtext?: string;
   icon?: React.ReactNode;
   value: number;
   min: number;
@@ -19,6 +20,7 @@ interface AuctionStepperProps {
 
 export function AuctionStepper({
   label,
+  subtext,
   icon,
   value,
   min,

@@ -1,15 +1,21 @@
 'use client';
 
 // src/app/(dashboard)/rooms/[id]/page.tsx
-// Phase 5B Room Lobby Page with RPC-Only Team Identity Editing & Participant Removal
+// Redesigned Live Cricket Auction Control Room Page
+// Preserves 100% backend queries, RPC contracts, realtime listeners, and team/participant logic.
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { Navbar } from '@/components/layout/navbar';
-import { ParticipantList } from '@/components/rooms/participant-list';
-import { TeamList } from '@/components/rooms/team-list';
+import { AuctionRoomHeader } from '@/components/rooms/auction-room-header';
+import { AuctionStatusBar } from '@/components/rooms/auction-status-bar';
+import { AuctionInfoStrip } from '@/components/rooms/auction-info-strip';
+import { AuctionStage } from '@/components/rooms/auction-stage';
+import { AuctionParticipants } from '@/components/rooms/auction-participants';
+import { AuctionHostControls } from '@/components/rooms/auction-host-controls';
+import { AuctionInvitePanel } from '@/components/rooms/auction-invite-panel';
 import { TeamModal } from '@/components/rooms/team-modal';
+
 import {
   getRoomById,
   getRoomParticipants,
@@ -21,18 +27,7 @@ import { getCurrentProfile } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/client';
 import type { Room, RoomParticipant, Team, UpdateTeamInput } from '@/lib/types/room';
 import type { Profile } from '@/lib/types/auth';
-import {
-  ArrowLeft,
-  Crown,
-  Database,
-  Users,
-  Shield,
-  Copy,
-  Check,
-  Loader2,
-  AlertCircle,
-  RefreshCw,
-} from 'lucide-react';
+import { Loader2, AlertCircle } from 'lucide-react';
 
 export default function RoomLobbyPage() {
   const params = useParams();
@@ -46,50 +41,49 @@ export default function RoomLobbyPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [copiedCode, setCopiedCode] = useState(false);
-
-  // Active Tab
-  const [activeTab, setActiveTab] = useState<'PARTICIPANTS' | 'TEAMS'>('TEAMS');
 
   // Team Modal state
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [editingTeam, setEditingTeam] = useState<Team | null>(null);
 
-  const loadLobbyData = useCallback(async (showSpinner = true) => {
-    if (!roomId) return;
-    if (showSpinner) setIsLoading(true);
-    setError(null);
-    try {
-      const [prof, roomData] = await Promise.all([
-        getCurrentProfile(),
-        getRoomById(roomId),
-      ]);
+  const loadLobbyData = useCallback(
+    async (showSpinner = true) => {
+      if (!roomId) return;
+      if (showSpinner) setIsLoading(true);
+      setError(null);
+      try {
+        const [prof, roomData] = await Promise.all([
+          getCurrentProfile(),
+          getRoomById(roomId),
+        ]);
 
-      if (!roomData) {
-        setError('Room not found or access denied');
-        return;
+        if (!roomData) {
+          setError('Auction control room not found or access denied.');
+          return;
+        }
+
+        setProfile(prof);
+        setRoom(roomData);
+
+        const parts = await getRoomParticipants(roomId);
+        setParticipants(parts);
+
+        if (roomData.auction_id) {
+          const teamData = await getAuctionTeams(roomData.auction_id);
+          setTeams(teamData);
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('Failed to load auction room lobby.');
+        }
+      } finally {
+        if (showSpinner) setIsLoading(false);
       }
-
-      setProfile(prof);
-      setRoom(roomData);
-
-      const parts = await getRoomParticipants(roomId);
-      setParticipants(parts);
-
-      if (roomData.auction_id) {
-        const teamData = await getAuctionTeams(roomData.auction_id);
-        setTeams(teamData);
-      }
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Failed to load room lobby');
-      }
-    } finally {
-      if (showSpinner) setIsLoading(false);
-    }
-  }, [roomId]);
+    },
+    [roomId]
+  );
 
   useEffect(() => {
     loadLobbyData(true);
@@ -125,12 +119,10 @@ export default function RoomLobbyPage() {
 
   const isHost = Boolean(profile && room && room.host_id === profile.id);
 
-  const handleCopyCode = () => {
-    if (!room) return;
-    navigator.clipboard.writeText(room.code);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
-  };
+  const myTeam = teams.find((t) => {
+    const p = participants.find((part) => part.team_id === t.id);
+    return Boolean(profile && p?.user_id === profile.id);
+  });
 
   const handleUpdateMyTeam = async (data: UpdateTeamInput) => {
     if (!editingTeam) return;
@@ -138,7 +130,7 @@ export default function RoomLobbyPage() {
       await updateMyTeam(editingTeam.id, data);
       setIsTeamModalOpen(false);
       setEditingTeam(null);
-      await loadLobbyData();
+      await loadLobbyData(false);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Failed to update team identity');
     }
@@ -157,156 +149,138 @@ export default function RoomLobbyPage() {
       if (isSelf) {
         router.push('/rooms');
       } else {
-        await loadLobbyData();
+        await loadLobbyData(false);
       }
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'Failed to remove participant');
     }
   };
 
+  const handleCopyInviteLink = () => {
+    if (!room?.code) return;
+    const inviteUrl = `${window.location.origin}/rooms/join?code=${room.code}`;
+    navigator.clipboard.writeText(inviteUrl);
+  };
+
+  const defaultPurseCr = room?.settings?.default_purse || 100;
+  const maxSquadSize = room?.settings?.max_squad_size || 15;
+  const maxOverseas = room?.settings?.max_overseas || 8;
+  const timerSeconds = room?.settings?.timer_duration_seconds || 15;
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-[#0B0F0D] text-[#F3F4F1] flex flex-col font-sans selection:bg-[#C9A227]/30 selection:text-[#E4B93F]">
       <Navbar />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Top Navigation */}
-        <div className="flex items-center justify-between">
-          <Link
-            href="/rooms"
-            className="inline-flex items-center space-x-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back to Rooms</span>
-          </Link>
-
-          <button
-            onClick={() => loadLobbyData(true)}
-            disabled={isLoading}
-            className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-800 transition-colors"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Refresh Lobby</span>
-          </button>
-        </div>
-
-        {/* Loading / Error state */}
+      {/* Main Content Viewport Area */}
+      <main className="flex-1 flex flex-col w-full">
         {isLoading ? (
-          <div className="p-12 text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-indigo-400 mx-auto mb-3" />
-            <p className="text-sm text-slate-400">Loading auction lobby...</p>
+          <div className="flex-1 flex flex-col items-center justify-center p-12 space-y-4">
+            <Loader2 className="w-10 h-10 animate-spin text-[#C9A227]" />
+            <p className="text-sm font-mono-numbers text-[#9CA6A0] uppercase tracking-widest">
+              INITIALIZING AUCTION CONTROL ROOM...
+            </p>
           </div>
         ) : error || !room ? (
-          <div className="p-8 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm flex items-center space-x-3">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <span>{error || 'Room not found'}</span>
+          <div className="max-w-4xl mx-auto w-full my-12 p-6 rounded-2xl bg-[#B8322E]/10 border-2 border-[#B8322E]/40 text-[#B8322E] text-sm flex items-center space-x-4">
+            <AlertCircle className="w-6 h-6 flex-shrink-0" />
+            <div className="font-mono-numbers">
+              <strong className="block text-base font-bold uppercase mb-1">AUCTION ACCESS ERROR</strong>
+              <span>{error || 'Auction room was not found.'}</span>
+            </div>
           </div>
         ) : (
-          <>
-            {/* Room Header Banner */}
-            <div className="p-8 rounded-2xl bg-slate-900/80 border border-slate-800 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-              <div>
-                <div className="flex items-center space-x-3 mb-2">
-                  <h1 className="text-3xl font-extrabold text-white">{room.name}</h1>
-                  <span
-                    className={`text-xs font-bold px-3 py-1 rounded-full border ${
-                      room.status === 'OPEN'
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                        : 'bg-slate-800 text-slate-400 border-slate-700'
-                    }`}
-                  >
-                    {room.status}
-                  </span>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
-                  <span className="flex items-center gap-1.5">
-                    <Crown className="w-4 h-4 text-amber-400" />
-                    Host: <strong className="text-white">{room.host_profile?.display_name || 'Host'}</strong>
-                  </span>
-                  <span>•</span>
-                  <span className="flex items-center gap-1.5">
-                    <Database className="w-4 h-4 text-emerald-400" />
-                    Pool: <strong className="text-white">{room.player_set_name}</strong>
-                  </span>
-                  <span>•</span>
-                  <span>Purse: <strong className="text-white font-mono">{room.settings?.default_purse} Lakhs</strong></span>
-                </div>
-              </div>
-
-              {/* Room Code Quick Box */}
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 flex items-center space-x-4">
-                <div>
-                  <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
-                    Room Join Code
-                  </span>
-                  <code className="text-2xl font-mono font-extrabold tracking-widest text-indigo-400">
-                    {room.code}
-                  </code>
-                </div>
-                <button
-                  onClick={handleCopyCode}
-                  className="p-2.5 rounded-xl bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-600/30 transition-colors"
-                  title="Copy Room Code"
-                >
-                  {copiedCode ? <Check className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
-                </button>
-              </div>
+          <div className="flex-1 flex flex-col w-full space-y-0">
+            {/* Top Room Console Header */}
+            <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2">
+              <AuctionRoomHeader
+                room={room}
+                participantCount={participants.length}
+                maxManagers={10}
+                isHost={isHost}
+                onRefresh={() => loadLobbyData(true)}
+                isLoading={isLoading}
+              />
             </div>
 
-            {/* Navigation Tabs */}
-            <div className="flex items-center space-x-2 border-b border-slate-800 pb-2">
-              <button
-                onClick={() => setActiveTab('TEAMS')}
-                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 ${
-                  activeTab === 'TEAMS'
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
-                }`}
-              >
-                <Shield className="w-4 h-4" />
-                <span>Auction Franchises ({teams.length})</span>
-              </button>
+            {/* Horizontal Auction Status Ticker Bar */}
+            <AuctionStatusBar
+              participantCount={participants.length}
+              roomCode={room.code}
+              defaultPurseCr={defaultPurseCr}
+              playerSetName={room.player_set_name}
+              isConnected={true}
+            />
 
-              <button
-                onClick={() => setActiveTab('PARTICIPANTS')}
-                className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 ${
-                  activeTab === 'PARTICIPANTS'
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
-                }`}
-              >
-                <Users className="w-4 h-4" />
-                <span>Room Roster ({participants.length})</span>
-              </button>
+            {/* Horizontal Auction Info Strip */}
+            <AuctionInfoStrip
+              playerSetName={room.player_set_name}
+              defaultPurseCr={defaultPurseCr}
+              timerSeconds={timerSeconds}
+              maxSquadSize={maxSquadSize}
+              maxOverseas={maxOverseas}
+              botCount={room.settings?.bot_count ?? 0}
+              totalManagers={participants.length}
+              maxManagers={10}
+            />
+
+            {/* Main Stage & Control Panel Layout Grid */}
+            <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                
+                {/* LEFT STAGE COLUMN (~65% width on desktop) */}
+                <div className="lg:col-span-7 flex flex-col h-full">
+                  <AuctionStage
+                    roomName={room.name}
+                    isHost={isHost}
+                  />
+                </div>
+
+                {/* RIGHT CONTROL PANEL COLUMN (~35% width on desktop) */}
+                <div className="lg:col-span-5 space-y-4">
+                  {/* Host Controls */}
+                  <AuctionHostControls
+                    isHost={isHost}
+                    onEditTeam={
+                      myTeam
+                        ? () => {
+                            setEditingTeam(myTeam);
+                            setIsTeamModalOpen(true);
+                          }
+                        : undefined
+                    }
+                    onCopyInvite={handleCopyInviteLink}
+                    onLeaveRoom={() => {
+                      const myPart = participants.find((p) => profile && p.user_id === profile.id);
+                      if (myPart) handleRemoveParticipant(myPart);
+                    }}
+                  />
+
+                  {/* Invite Panel */}
+                  <AuctionInvitePanel roomCode={room.code} />
+
+                  {/* Auction Managers Roster */}
+                  <AuctionParticipants
+                    teams={teams}
+                    participants={participants}
+                    currentUserId={profile?.id}
+                    isHost={isHost}
+                    maxSquadSize={maxSquadSize}
+                    maxOverseas={maxOverseas}
+                    onEditTeam={(t) => {
+                      setEditingTeam(t);
+                      setIsTeamModalOpen(true);
+                    }}
+                    onRemoveParticipant={handleRemoveParticipant}
+                  />
+                </div>
+
+              </div>
             </div>
-
-            {/* Tab Content */}
-            {activeTab === 'TEAMS' ? (
-              <TeamList
-                teams={teams}
-                participants={participants}
-                currentUserId={profile?.id}
-                isHost={isHost}
-                onEditMyTeam={(t) => {
-                  setEditingTeam(t);
-                  setIsTeamModalOpen(true);
-                }}
-                onRemoveParticipant={handleRemoveParticipant}
-              />
-            ) : (
-              <ParticipantList
-                participants={participants}
-                teams={teams}
-                currentUserId={profile?.id}
-                isHost={isHost}
-                onRemoveParticipant={handleRemoveParticipant}
-              />
-            )}
-          </>
+          </div>
         )}
       </main>
 
-      {/* Identity Edit Modal */}
+      {/* Team Identity Edit Modal */}
       <TeamModal
         isOpen={isTeamModalOpen}
         onClose={() => {
@@ -319,4 +293,3 @@ export default function RoomLobbyPage() {
     </div>
   );
 }
-

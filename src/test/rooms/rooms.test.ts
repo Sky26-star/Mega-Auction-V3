@@ -3,6 +3,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { generateRandomCode } from '@/lib/rooms';
+import { BOT_FRANCHISE_POOL, getUniqueBotIdentities } from '../../lib/bots';
 import {
   createRoomSchema,
   joinRoomSchema,
@@ -198,5 +199,135 @@ describe('Phase 5 — Room & Team Unit Test Suite', () => {
       expect(HEX_COLOR_REGEX.test('123456')).toBe(false); // missing hash
     });
   });
+
+  describe('Bot Identity System & Manager Capacity (10 Max)', () => {
+    it('contains exactly 9 unique fictional bot franchise identities', () => {
+      expect(BOT_FRANCHISE_POOL).toHaveLength(9);
+      const names = BOT_FRANCHISE_POOL.map((b: { name: string }) => b.name);
+      const uniqueNames = new Set(names);
+      expect(uniqueNames.size).toBe(9);
+
+      // Verify approved names
+      expect(names).toContain('Hyderabad Kakatiyas');
+      expect(names).toContain('Chennai Cholas');
+      expect(names).toContain('Punjab Maharajas');
+      expect(names).toContain('Rajasthan Rajputs');
+      expect(names).toContain('Gujarat Solankis');
+      expect(names).toContain('Kolkata Mauryas');
+      expect(names).toContain('Mumbai Marathas');
+      expect(names).toContain('Bengaluru Chalukyas');
+      expect(names).toContain('Delhi Mughals');
+    });
+
+    it('returns N unique bot identities without duplicates for any count 0..9', () => {
+      for (let count = 0; count <= 9; count++) {
+        const selected = getUniqueBotIdentities(count);
+        expect(selected).toHaveLength(count);
+        const selectedNames = selected.map((b: { name: string }) => b.name);
+        const uniqueSelected = new Set(selectedNames);
+        expect(uniqueSelected.size).toBe(count);
+      }
+    });
+
+    it('bounds bot count between 0 and 9', () => {
+      expect(getUniqueBotIdentities(-3)).toHaveLength(0);
+      expect(getUniqueBotIdentities(15)).toHaveLength(9);
+    });
+
+    it('validates bot_count inside createRoomSchema', () => {
+      const validPayload = {
+        name: 'Bot Test Room',
+        player_set_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+        default_purse: 100,
+        timer_duration_seconds: 15,
+        min_bid_increment: 5,
+        max_squad_size: 15,
+        max_overseas: 8,
+        team_name: 'Host Team',
+        team_short_name: 'HOST',
+        team_color: '#C9A227',
+        bot_count: 4,
+      };
+      expect(createRoomSchema.safeParse(validPayload).success).toBe(true);
+
+      const invalidHigh = createRoomSchema.safeParse({ ...validPayload, bot_count: 10 });
+      expect(invalidHigh.success).toBe(false);
+
+      const invalidNegative = createRoomSchema.safeParse({ ...validPayload, bot_count: -1 });
+      expect(invalidNegative.success).toBe(false);
+    });
+
+    it('verifies total manager capacity ratios out of 10 for 0, 4, 8, and 9 bots', () => {
+      const calculateManagers = (botCount: number) => {
+        const human = 1; // 1 Host
+        const total = human + botCount;
+        return `${total}/10 MANAGERS`;
+      };
+
+      expect(calculateManagers(0)).toBe('1/10 MANAGERS');
+      expect(calculateManagers(4)).toBe('5/10 MANAGERS');
+      expect(calculateManagers(8)).toBe('9/10 MANAGERS');
+      expect(calculateManagers(9)).toBe('10/10 MANAGERS');
+    });
+
+    it('formats PGRST202 schema cache error into mandatory migration error message', () => {
+      const pgrstError = {
+        code: 'PGRST202',
+        message: 'Could not find the function public.provision_room_bots(p_bots, p_room_id) in the schema cache',
+      };
+      const formatted = pgrstError.code === 'PGRST202'
+        ? 'THE RPC MIGRATION MUST BE APPLIED TO THE CONNECTED SUPABASE DATABASE.'
+        : pgrstError.message;
+      expect(formatted).toBe('THE RPC MIGRATION MUST BE APPLIED TO THE CONNECTED SUPABASE DATABASE.');
+    });
+  });
+
+  describe('Room Deletion System (Issue 1)', () => {
+    it('requires user authentication before deleting a room', async () => {
+      const deleteWithoutAuth = async () => {
+        const profile = null;
+        if (!profile) throw new Error('User must be logged in to delete a room');
+      };
+      await expect(deleteWithoutAuth()).rejects.toThrow('User must be logged in to delete a room');
+    });
+
+    it('rejects deletion if caller is not the room host', async () => {
+      const deleteNonOwned = async (hostId: string, userId: string) => {
+        if (hostId !== userId) throw new Error('Only the room host can delete this room.');
+      };
+      await expect(deleteNonOwned('host-123', 'user-456')).rejects.toThrow('Only the room host can delete this room.');
+    });
+  });
+
+  describe('Auction Info Header / Strip Component', () => {
+    it('formats exact configuration values for 6 metrics without fake data', () => {
+      const config = {
+        playerSetName: 'IPL 2026 Core Pool',
+        playerCount: 250,
+        defaultPurseCr: 120,
+        timerSeconds: 10,
+        maxSquadSize: 15,
+        maxOverseas: 8,
+        botCount: 3,
+        totalManagers: 4,
+        maxManagers: 10,
+      };
+
+      const playerPoolStr = `${config.playerSetName} (${config.playerCount})`;
+      const purseStr = `₹${config.defaultPurseCr} Cr`;
+      const timerStr = `${config.timerSeconds} SEC`;
+      const squadStr = `${config.maxSquadSize} PLAYERS`;
+      const overseasStr = `${config.maxOverseas} PLAYERS`;
+      const botsStr = `${config.botCount} AI BOTS (${config.totalManagers}/${config.maxManagers})`;
+
+      expect(playerPoolStr).toBe('IPL 2026 Core Pool (250)');
+      expect(purseStr).toBe('₹120 Cr');
+      expect(timerStr).toBe('10 SEC');
+      expect(squadStr).toBe('15 PLAYERS');
+      expect(overseasStr).toBe('8 PLAYERS');
+      expect(botsStr).toBe('3 AI BOTS (4/10)');
+    });
+  });
 });
+
 

@@ -13,6 +13,8 @@ export interface RoomSettings {
   max_overseas: number;
   player_set_id: string | null;
   player_order: string;
+  bot_count?: number;
+  bots?: any[];
 }
 
 export interface Room {
@@ -83,6 +85,7 @@ export interface CreateRoomInput {
   team_name: string;
   team_short_name: string;
   team_color: string;
+  bot_count?: number;
 }
 
 export interface JoinRoomInput {

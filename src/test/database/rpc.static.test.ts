@@ -65,4 +65,20 @@ describe('Phase 2B Local RPC Static Verification Suite', () => {
     expect(rpcSql).toContain('REVOKE ALL ON FUNCTION public.execute_bot_bids(UUID) FROM PUBLIC, anon, authenticated;');
     expect(rpcSql).toContain('REVOKE ALL ON FUNCTION public.evaluate_bot_interests(UUID, UUID) FROM PUBLIC, anon, authenticated;');
   });
+
+  it('8. Implements provision_room_bots RPC with SECURITY DEFINER and 10 manager limit guard', () => {
+    const botRpcFile = path.join(migrationsDir, '00008_provision_bots_rpc.sql');
+    expect(fs.existsSync(botRpcFile)).toBe(true);
+    const botSql = fs.readFileSync(botRpcFile, 'utf-8');
+
+    expect(botSql).toContain('CREATE OR REPLACE FUNCTION public.provision_room_bots');
+    expect(botSql).toContain('SECURITY DEFINER');
+    expect(botSql).toContain('UNAUTHORIZED_NOT_HOST');
+    expect(botSql).toContain('INVALID_BOT_COUNT');
+    expect(botSql).toContain('EXCEEDS_MANAGER_CAPACITY');
+    expect(botSql).toContain('INSERT INTO public.teams');
+    expect(botSql).toContain('INSERT INTO public.room_participants');
+    expect(botSql).toContain('REVOKE ALL ON FUNCTION public.provision_room_bots(UUID, JSONB) FROM PUBLIC, anon;');
+    expect(botSql).toContain('GRANT EXECUTE ON FUNCTION public.provision_room_bots(UUID, JSONB) TO authenticated, service_role;');
+  });
 });

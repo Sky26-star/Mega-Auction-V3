@@ -1,7 +1,7 @@
 'use client';
 
 // src/components/rooms/create-room-preview.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { PlayerSet } from '@/lib/types/player-set';
 import {
   Gavel,
@@ -32,6 +32,26 @@ interface CreateRoomPreviewProps {
   enableBots?: boolean;
   botCount?: number;
   botDifficulty?: string;
+}
+
+function AnimatedValue({ children, valueKey }: { children: React.ReactNode; valueKey: any }) {
+  const [pulse, setPulse] = useState(false);
+
+  useEffect(() => {
+    setPulse(true);
+    const t = setTimeout(() => setPulse(false), 350);
+    return () => clearTimeout(t);
+  }, [valueKey]);
+
+  return (
+    <span
+      className={`inline-block transition-all duration-300 ${
+        pulse ? 'scale-105 text-[#E4B93F] drop-shadow-[0_0_8px_rgba(228,185,63,0.5)]' : ''
+      }`}
+    >
+      {children}
+    </span>
+  );
 }
 
 export function CreateRoomPreview({
@@ -89,7 +109,7 @@ export function CreateRoomPreview({
           MEGA AUCTION ARENA
         </span>
         <h2 className="text-xl sm:text-2xl font-black text-[#F3F4F1] font-display uppercase tracking-wide truncate">
-          {formattedRoomName}
+          <AnimatedValue valueKey={formattedRoomName}>{formattedRoomName}</AnimatedValue>
         </h2>
       </div>
 
@@ -134,7 +154,9 @@ export function CreateRoomPreview({
             <span>PLAYER POOL:</span>
           </span>
           <span className="font-bold text-[#F3F4F1] truncate max-w-[180px] bg-[#181E1A] px-2 py-0.5 rounded border border-[#2A312D]">
-            {setName} ({playerCount})
+            <AnimatedValue valueKey={setName}>
+              {setName} ({playerCount})
+            </AnimatedValue>
           </span>
         </div>
 
@@ -145,7 +167,7 @@ export function CreateRoomPreview({
             <span>STARTING PURSE:</span>
           </span>
           <span className="font-black font-mono-numbers text-[#E4B93F] text-sm">
-            ₹{defaultPurse} Cr
+            <AnimatedValue valueKey={defaultPurse}>₹{defaultPurse} Cr</AnimatedValue>
           </span>
         </div>
 
@@ -156,7 +178,7 @@ export function CreateRoomPreview({
             <span>TIMER PER LOT:</span>
           </span>
           <span className="font-bold font-mono-numbers text-[#F3F4F1]">
-            {timerDuration} SEC
+            <AnimatedValue valueKey={timerDuration}>{timerDuration} SEC</AnimatedValue>
           </span>
         </div>
 
@@ -167,7 +189,7 @@ export function CreateRoomPreview({
             <span>MAX SQUAD SIZE:</span>
           </span>
           <span className="font-bold font-mono-numbers text-[#F3F4F1]">
-            {maxSquadSize} PLAYERS
+            <AnimatedValue valueKey={maxSquadSize}>{maxSquadSize} PLAYERS</AnimatedValue>
           </span>
         </div>
 
@@ -178,7 +200,7 @@ export function CreateRoomPreview({
             <span>OVERSEAS LIMIT:</span>
           </span>
           <span className="font-bold font-mono-numbers text-sky-400 flex items-center space-x-1 bg-[#181E1A] px-2 py-0.5 rounded border border-[#2A312D]">
-            <span>{maxOverseas} PLAYERS</span>
+            <AnimatedValue valueKey={maxOverseas}>{maxOverseas} PLAYERS</AnimatedValue>
             <Lock className="w-3 h-3 text-[#9CA6A0]" />
           </span>
         </div>
@@ -190,7 +212,9 @@ export function CreateRoomPreview({
             <span>BOT OPPONENTS:</span>
           </span>
           <span className="font-bold text-[#F3F4F1] bg-[#181E1A] px-2 py-0.5 rounded border border-[#2A312D]">
-            {enableBots ? `${botCount} Bots (${botDifficulty})` : 'Disabled'}
+            <AnimatedValue valueKey={`${enableBots}-${botCount}`}>
+              {enableBots && botCount > 0 ? `${botCount} AI BOTS (${1 + botCount}/10 MANAGERS)` : 'DISABLED (1/10 MANAGERS)'}
+            </AnimatedValue>
           </span>
         </div>
 
@@ -200,7 +224,7 @@ export function CreateRoomPreview({
       <div className="mt-4 p-3.5 rounded-xl bg-gradient-to-r from-[#181E1A] via-[#141917] to-[#181E1A] border border-[#C9A227]/40 flex items-center justify-between">
         <div className="flex items-center space-x-2.5">
           <div
-            className="w-8 h-8 rounded-lg border border-white/20 flex items-center justify-center font-black text-xs text-white shadow-md"
+            className="w-8 h-8 rounded-lg border border-white/20 flex items-center justify-center font-black text-xs text-white shadow-md transition-all"
             style={{ backgroundColor: teamColor || '#3B82F6' }}
           >
             {formattedShortCode.slice(0, 3)}
@@ -211,7 +235,7 @@ export function CreateRoomPreview({
             </span>
             <span className="text-xs font-bold text-[#F3F4F1] flex items-center space-x-1">
               <Trophy className="w-3.5 h-3.5 text-[#C9A227]" />
-              <span>{formattedTeamName}</span>
+              <AnimatedValue valueKey={formattedTeamName}>{formattedTeamName}</AnimatedValue>
             </span>
           </div>
         </div>

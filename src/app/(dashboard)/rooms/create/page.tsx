@@ -51,9 +51,9 @@ export default function CreateRoomPage() {
   const [maxSquadSize, setMaxSquadSize] = useState(15); // Squad: 15, 20, 25
   const maxOverseas = 8; // Fixed Tournament Rule (8 Players)
 
-  // Bot Opponents State
+  // Bot Opponents State (Min 0, Max 9, Default 0)
   const [enableBots, setEnableBots] = useState(true);
-  const [botCount, setBotCount] = useState(4);
+  const [botCount, setBotCount] = useState(0);
   const [botDifficulty, setBotDifficulty] = useState<'Easy' | 'Balanced' | 'Aggressive'>('Balanced');
 
   // Host Franchise Identity State (Phase 5B)
@@ -110,6 +110,8 @@ export default function CreateRoomPage() {
     e.preventDefault();
     setFormError(null);
 
+    const activeBotCount = enableBots ? botCount : 0;
+
     // Note: min_bid_increment = 50 is provided ONLY as a backward-compatible placeholder for existing RPC schema
     const validation = createRoomSchema.safeParse({
       name,
@@ -122,6 +124,7 @@ export default function CreateRoomPage() {
       team_name: teamName,
       team_short_name: teamShortName,
       team_color: teamColor,
+      bot_count: activeBotCount,
     });
 
     if (!validation.success) {
@@ -563,17 +566,18 @@ export default function CreateRoomPage() {
                 {enableBots && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
                     <div>
-                      <label htmlFor="bot-count" className="block text-xs font-bold text-[#B4BDB7] uppercase tracking-wider mb-2">
-                        Number of Automated Bots
-                      </label>
-                      <input
-                        id="bot-count"
-                        type="number"
-                        min={1}
-                        max={9}
+                      <AuctionStepper
+                        id="bot-opponents-stepper"
+                        label="BOT OPPONENTS"
+                        subtext="AI MANAGERS"
+                        icon={<Cpu className="w-3.5 h-3.5 text-[#E4B93F]" />}
                         value={botCount}
-                        onChange={(e) => setBotCount(parseInt(e.target.value, 10) || 4)}
-                        className="w-full px-4 py-3 rounded-xl bg-[#0B0F0D] border border-[#2A312D] text-[#F3F4F1] font-mono-numbers text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[#C9A227] focus:border-transparent transition-all"
+                        min={0}
+                        max={9}
+                        step={1}
+                        formatValue={(v) => (v === 0 ? '0 BOTS (DISABLED)' : `${v} AI MANAGERS`)}
+                        formatDelta={(d) => (d > 0 ? `+${d} BOT` : `-${Math.abs(d)} BOT`)}
+                        onChange={setBotCount}
                       />
                     </div>
 
