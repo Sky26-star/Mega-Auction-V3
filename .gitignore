@@ -41,3 +41,8 @@ yarn-error.log*
 # Local development / generated files
 /scratch/
 *.tsbuildinfo
+
+# Unused/generated project assets
+/openapi.json
+/public/images/cricket_auction_trophy_3d.png
+/public/images/ipl_trophy_3d.png
