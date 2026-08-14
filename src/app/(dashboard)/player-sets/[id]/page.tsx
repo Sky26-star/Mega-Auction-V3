@@ -1,12 +1,15 @@
 'use client';
 
 // src/app/(dashboard)/player-sets/[id]/page.tsx
+// Player Set Detail Page with V2 Player Table, Modals, and PlayerCard Foundation
+
 import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { Navbar } from '@/components/layout/navbar';
 import { PlayerTable } from '@/components/player-sets/player-table';
 import { PlayerModal } from '@/components/player-sets/player-modal';
 import { CSVImportModal } from '@/components/player-sets/csv-import-modal';
+import { PlayerCard } from '@/components/player-sets/player-card';
 import {
   getPlayerSetById,
   getPlayersBySetId,
@@ -33,7 +36,6 @@ import Link from 'next/link';
 
 export default function PlayerSetDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const playerSetId = params.id as string;
 
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -46,6 +48,7 @@ export default function PlayerSetDetailPage() {
   // Modals state
   const [isPlayerModalOpen, setIsPlayerModalOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<Player | null>(null);
+  const [cardPlayer, setCardPlayer] = useState<Player | null>(null);
   const [isCSVModalOpen, setIsCSVModalOpen] = useState(false);
 
   useEffect(() => {
@@ -208,6 +211,7 @@ export default function PlayerSetDetailPage() {
             <PlayerTable
               players={players}
               isOwner={isOwner}
+              onViewPlayer={(p) => setCardPlayer(p)}
               onEditPlayer={(p) => {
                 setEditingPlayer(p);
                 setIsPlayerModalOpen(true);
@@ -235,6 +239,13 @@ export default function PlayerSetDetailPage() {
         onClose={() => setIsCSVModalOpen(false)}
         onImport={handleCSVImport}
       />
+
+      {/* Player Card Preview Modal */}
+      {cardPlayer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+          <PlayerCard player={cardPlayer} onClose={() => setCardPlayer(null)} />
+        </div>
+      )}
     </div>
   );
 }

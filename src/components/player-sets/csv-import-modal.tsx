@@ -1,9 +1,12 @@
 'use client';
 
 // src/components/player-sets/csv-import-modal.tsx
+// CSV Import Modal for Player Master Data V2
+
 import React, { useState } from 'react';
 import { parsePlayerCSV } from '@/lib/csv-parser';
 import type { CSVImportResult, PlayerFormInput } from '@/lib/types/player-set';
+import { CATEGORY_UI_LABELS } from '@/lib/types/player-set';
 import { X, UploadCloud, FileText, CheckCircle2, AlertTriangle, Loader2, AlertCircle } from 'lucide-react';
 
 interface CSVImportModalProps {
@@ -78,7 +81,7 @@ export function CSVImportModal({ isOpen, onClose, onImport }: CSVImportModalProp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-2xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="w-full max-w-3xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="px-6 py-5 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
@@ -86,8 +89,8 @@ export function CSVImportModal({ isOpen, onClose, onImport }: CSVImportModalProp
               <UploadCloud className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-white">Import Players via CSV</h2>
-              <p className="text-xs text-slate-400">Upload a CSV file containing player details</p>
+              <h2 className="text-lg font-bold text-white">Import Players via CSV (V2)</h2>
+              <p className="text-xs text-slate-400">Upload a CSV file containing player details and career statistics</p>
             </div>
           </div>
           <button
@@ -130,8 +133,8 @@ export function CSVImportModal({ isOpen, onClose, onImport }: CSVImportModalProp
             <p className="text-sm font-semibold text-white mb-1">
               {file ? file.name : 'Click or drag CSV file here to upload'}
             </p>
-            <p className="text-xs text-slate-400">
-              Expected headers: <code className="text-emerald-300 bg-slate-800 px-1.5 py-0.5 rounded font-mono">name,role,category,base_price,is_overseas,image_url</code>
+            <p className="text-xs text-slate-400 max-w-xl mx-auto leading-relaxed">
+              Required headers: <code className="text-emerald-300 bg-slate-800 px-1.5 py-0.5 rounded font-mono">name, country, role</code>. Optional: <code className="text-emerald-300 bg-slate-800 px-1.5 py-0.5 rounded font-mono">age, batting_hand, category, base_price, image_url, matches, runs...</code>
             </p>
           </div>
 
@@ -175,6 +178,7 @@ export function CSVImportModal({ isOpen, onClose, onImport }: CSVImportModalProp
                       <thead className="bg-slate-800/80 text-slate-400 uppercase text-[10px] tracking-wider">
                         <tr>
                           <th className="px-3 py-2">Name</th>
+                          <th className="px-3 py-2">Country</th>
                           <th className="px-3 py-2">Role</th>
                           <th className="px-3 py-2">Category</th>
                           <th className="px-3 py-2">Base Price</th>
@@ -185,8 +189,9 @@ export function CSVImportModal({ isOpen, onClose, onImport }: CSVImportModalProp
                         {importResult.validRows.slice(0, 5).map((row, i) => (
                           <tr key={i} className="hover:bg-slate-800/30">
                             <td className="px-3 py-2 font-medium text-white">{row.name}</td>
+                            <td className="px-3 py-2">{row.country}</td>
                             <td className="px-3 py-2">{row.role}</td>
-                            <td className="px-3 py-2">{row.category}</td>
+                            <td className="px-3 py-2">{CATEGORY_UI_LABELS[row.category] || row.category}</td>
                             <td className="px-3 py-2 font-mono">{row.base_price} Lakhs</td>
                             <td className="px-3 py-2">{row.is_overseas ? 'Yes' : 'No'}</td>
                           </tr>

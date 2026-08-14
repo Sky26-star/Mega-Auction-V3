@@ -1,13 +1,53 @@
 // src/lib/player-sets.ts
-// Supabase Client Service Operations for Player Sets & Players (RLS Enforcement)
+// Supabase Client Service Operations for Player Sets & Players (RLS Enforcement - V2)
 
 import { createClient as createBrowserClient } from './supabase/client';
 import type { PlayerSet, Player, PlayerSetFormInput, PlayerFormInput } from './types/player-set';
 
+function formatPlayerPayload(p: PlayerFormInput, playerSetId?: string) {
+  const is_overseas = p.country
+    ? p.country.trim().toLowerCase() !== 'india'
+    : Boolean(p.is_overseas);
+
+  return {
+    ...(playerSetId ? { player_set_id: playerSetId } : {}),
+    name: p.name,
+    country: p.country,
+    role: p.role,
+    category: p.category || 'C',
+    base_price: p.base_price,
+    is_overseas,
+    image_url: p.image_url || null,
+    age: p.age ?? null,
+    batting_hand: p.batting_hand || null,
+
+    // Batting stats
+    matches: p.matches ?? null,
+    runs: p.runs ?? null,
+    batting_average: p.batting_average ?? null,
+    strike_rate: p.strike_rate ?? null,
+    hundreds: p.hundreds ?? null,
+    fifties: p.fifties ?? null,
+    highest_score: p.highest_score ?? null,
+    boundaries: p.boundaries ?? null,
+
+    // Bowling stats
+    overs: p.overs ?? null,
+    wickets: p.wickets ?? null,
+    bowling_average: p.bowling_average ?? null,
+    economy_rate: p.economy_rate ?? null,
+    bowling_strike_rate: p.bowling_strike_rate ?? null,
+    best_bowling: p.best_bowling || null,
+    three_wicket_hauls: p.three_wicket_hauls ?? null,
+
+    // Keeping stats
+    catches: p.catches ?? null,
+    stumpings: p.stumpings ?? null,
+  };
+}
+
 /**
  * Fetch all player sets accessible by the authenticated user.
- * RLS automatically filters: (is_public = true OR created_by = auth.uid()).
- * Includes relational count of players.
  */
 export async function getPlayerSets(): Promise<PlayerSet[]> {
   const supabase = createBrowserClient();
@@ -35,7 +75,6 @@ export async function getPlayerSets(): Promise<PlayerSet[]> {
 
 /**
  * Fetch a single player set by ID with actual player count.
- * Returns null if not found or unauthorized via RLS.
  */
 export async function getPlayerSetById(id: string): Promise<PlayerSet | null> {
   const supabase = createBrowserClient();
@@ -161,18 +200,11 @@ export async function getPlayersBySetId(playerSetId: string): Promise<Player[]> 
  */
 export async function createPlayer(playerSetId: string, input: PlayerFormInput): Promise<Player> {
   const supabase = createBrowserClient();
+  const payload = formatPlayerPayload(input, playerSetId);
 
   const { data, error } = await supabase
     .from('players')
-    .insert({
-      player_set_id: playerSetId,
-      name: input.name,
-      role: input.role,
-      category: input.category || 'C',
-      base_price: input.base_price,
-      is_overseas: input.is_overseas ?? false,
-      image_url: input.image_url || null,
-    })
+    .insert(payload)
     .select()
     .single();
 
@@ -188,17 +220,11 @@ export async function createPlayer(playerSetId: string, input: PlayerFormInput):
  */
 export async function updatePlayer(playerId: string, input: PlayerFormInput): Promise<Player> {
   const supabase = createBrowserClient();
+  const payload = formatPlayerPayload(input);
 
   const { data, error } = await supabase
     .from('players')
-    .update({
-      name: input.name,
-      role: input.role,
-      category: input.category || 'C',
-      base_price: input.base_price,
-      is_overseas: input.is_overseas ?? false,
-      image_url: input.image_url || null,
-    })
+    .update(payload)
     .eq('id', playerId)
     .select()
     .single();
@@ -235,15 +261,9 @@ export async function bulkInsertPlayers(playerSetId: string, playersInput: Playe
   let totalInserted = 0;
 
   for (let i = 0; i < playersInput.length; i += BATCH_SIZE) {
-    const batch = playersInput.slice(i, i + BATCH_SIZE).map((p) => ({
-      player_set_id: playerSetId,
-      name: p.name,
-      role: p.role,
-      category: p.category || 'C',
-      base_price: p.base_price,
-      is_overseas: p.is_overseas ?? false,
-      image_url: p.image_url || null,
-    }));
+    const batch = playersInput
+      .slice(i, i + BATCH_SIZE)
+      .map((p) => formatPlayerPayload(p, playerSetId));
 
     const { data, error } = await supabase
       .from('players')

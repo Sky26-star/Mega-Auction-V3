@@ -1,18 +1,28 @@
 'use client';
 
 // src/components/player-sets/player-table.tsx
+// Compact Player Table Component for Player Master Data V2
+
 import React, { useState, useMemo } from 'react';
-import type { Player, PlayerRole, PlayerCategory } from '@/lib/types/player-set';
-import { Search, Filter, ArrowUpDown, Globe, Edit, Trash2, UserCheck, Image as ImageIcon } from 'lucide-react';
+import type { Player } from '@/lib/types/player-set';
+import { CATEGORY_UI_LABELS } from '@/lib/types/player-set';
+import { Search, Filter, ArrowUpDown, Globe, Edit, Trash2, UserCheck, Eye, User as UserIcon } from 'lucide-react';
 
 interface PlayerTableProps {
   players: Player[];
   isOwner: boolean;
+  onViewPlayer?: (player: Player) => void;
   onEditPlayer?: (player: Player) => void;
   onDeletePlayer?: (player: Player) => void;
 }
 
-export function PlayerTable({ players, isOwner, onEditPlayer, onDeletePlayer }: PlayerTableProps) {
+export function PlayerTable({
+  players,
+  isOwner,
+  onViewPlayer,
+  onEditPlayer,
+  onDeletePlayer,
+}: PlayerTableProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
@@ -22,7 +32,10 @@ export function PlayerTable({ players, isOwner, onEditPlayer, onDeletePlayer }: 
   const filteredPlayers = useMemo(() => {
     return players
       .filter((p) => {
-        const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase().trim());
+        const searchLower = searchTerm.toLowerCase().trim();
+        const matchesSearch =
+          p.name.toLowerCase().includes(searchLower) ||
+          (p.country && p.country.toLowerCase().includes(searchLower));
         const matchesRole = roleFilter === 'ALL' || p.role === roleFilter;
         const matchesCategory = categoryFilter === 'ALL' || p.category === categoryFilter;
         const matchesOverseas =
@@ -52,7 +65,7 @@ export function PlayerTable({ players, isOwner, onEditPlayer, onDeletePlayer }: 
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search players by name..."
+            placeholder="Search players by name or country..."
             className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-800/60 border border-slate-700/80 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs transition-all"
           />
         </div>
@@ -83,11 +96,11 @@ export function PlayerTable({ players, isOwner, onEditPlayer, onDeletePlayer }: 
               className="bg-transparent text-slate-200 focus:outline-none cursor-pointer"
             >
               <option value="ALL" className="bg-slate-900">All Categories</option>
-              <option value="MARQUEE" className="bg-slate-900">Marquee</option>
-              <option value="A" className="bg-slate-900">Cat A</option>
-              <option value="B" className="bg-slate-900">Cat B</option>
-              <option value="C" className="bg-slate-900">Cat C</option>
-              <option value="D" className="bg-slate-900">Cat D</option>
+              <option value="MARQUEE" className="bg-slate-900">Icon Players</option>
+              <option value="A" className="bg-slate-900">Elite Players</option>
+              <option value="B" className="bg-slate-900">Premier Players</option>
+              <option value="C" className="bg-slate-900">Core Players</option>
+              <option value="D" className="bg-slate-900">Rising Stars</option>
             </select>
           </div>
 
@@ -98,7 +111,7 @@ export function PlayerTable({ players, isOwner, onEditPlayer, onDeletePlayer }: 
               onChange={(e) => setOverseasFilter(e.target.value)}
               className="bg-transparent text-slate-200 focus:outline-none cursor-pointer"
             >
-              <option value="ALL" className="bg-slate-900">All Players</option>
+              <option value="ALL" className="bg-slate-900">All Origins</option>
               <option value="DOMESTIC" className="bg-slate-900">Domestic</option>
               <option value="OVERSEAS" className="bg-slate-900">Overseas</option>
             </select>
@@ -133,57 +146,85 @@ export function PlayerTable({ players, isOwner, onEditPlayer, onDeletePlayer }: 
             <thead className="bg-slate-800/90 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
               <tr>
                 <th className="px-4 py-3">Player</th>
+                <th className="px-4 py-3">Country</th>
                 <th className="px-4 py-3">Role</th>
                 <th className="px-4 py-3">Category</th>
                 <th className="px-4 py-3">Base Price</th>
-                <th className="px-4 py-3">Origin</th>
-                {isOwner && <th className="px-4 py-3 text-right">Actions</th>}
+                <th className="px-4 py-3">Overseas</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
-              {filteredPlayers.map((player) => (
-                <tr key={player.id} className="hover:bg-slate-800/40 transition-colors">
-                  <td className="px-4 py-3 font-semibold text-white flex items-center gap-3">
-                    {player.image_url ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={player.image_url} alt={player.name} className="w-8 h-8 rounded-full object-cover border border-slate-700" />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
-                        <ImageIcon className="w-4 h-4" />
+              {filteredPlayers.map((player) => {
+                const categoryLabel = CATEGORY_UI_LABELS[player.category] || player.category;
+
+                return (
+                  <tr key={player.id} className="hover:bg-slate-800/40 transition-colors">
+                    <td className="px-4 py-3 font-semibold text-white">
+                      <div className="flex items-center gap-3">
+                        {player.image_url ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={player.image_url}
+                            alt={player.name}
+                            className="w-8 h-8 rounded-full object-cover border border-slate-700"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400">
+                            <UserIcon className="w-4 h-4" />
+                          </div>
+                        )}
+                        <span className="truncate max-w-[180px]">{player.name}</span>
                       </div>
-                    )}
-                    <span>{player.name}</span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[11px] font-medium text-slate-300">
-                      {player.role.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold border ${
-                      player.category === 'MARQUEE'
-                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                        : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20'
-                    }`}>
-                      {player.category}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-white font-bold">
-                    {player.base_price} Lakhs
-                  </td>
-                  <td className="px-4 py-3">
-                    {player.is_overseas ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-violet-500/20 text-violet-300 border border-violet-500/30 text-[11px]">
-                        <Globe className="w-3 h-3" /> Overseas
+                    </td>
+                    <td className="px-4 py-3 text-slate-300 font-medium">
+                      {player.country || 'India'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-[11px] font-medium text-slate-300">
+                        {player.role.replace('_', ' ')}
                       </span>
-                    ) : (
-                      <span className="text-slate-400">Domestic</span>
-                    )}
-                  </td>
-                  {isOwner && (
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${
+                          player.category === 'MARQUEE'
+                            ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                            : player.category === 'A'
+                            ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
+                            : 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20'
+                        }`}
+                      >
+                        {categoryLabel}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-white font-bold">
+                      {player.base_price} Lakhs
+                    </td>
+                    <td className="px-4 py-3">
+                      {player.is_overseas ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-violet-500/20 text-violet-300 border border-violet-500/30 text-[11px] font-semibold">
+                          <Globe className="w-3 h-3" /> Overseas
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-[11px]">Domestic</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end space-x-2">
-                        {onEditPlayer && (
+                      <div className="flex items-center justify-end space-x-1.5">
+                        {onViewPlayer && (
+                          <button
+                            onClick={() => onViewPlayer(player)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
+                            title="View Player Card"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        )}
+                        {isOwner && onEditPlayer && (
                           <button
                             onClick={() => onEditPlayer(player)}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
@@ -192,7 +233,7 @@ export function PlayerTable({ players, isOwner, onEditPlayer, onDeletePlayer }: 
                             <Edit className="w-4 h-4" />
                           </button>
                         )}
-                        {onDeletePlayer && (
+                        {isOwner && onDeletePlayer && (
                           <button
                             onClick={() => onDeletePlayer(player)}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
@@ -203,9 +244,9 @@ export function PlayerTable({ players, isOwner, onEditPlayer, onDeletePlayer }: 
                         )}
                       </div>
                     </td>
-                  )}
-                </tr>
-              ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
