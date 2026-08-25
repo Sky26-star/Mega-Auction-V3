@@ -12,6 +12,14 @@ export const CATEGORY_UI_LABELS: Record<PlayerCategory, string> = {
   D: 'RISING STARS',
 };
 
+export const CATEGORY_SHORT_LABELS: Record<PlayerCategory, string> = {
+  MARQUEE: 'ICON',
+  A: 'ELITE',
+  B: 'PREMIER',
+  C: 'CORE',
+  D: 'RISING',
+};
+
 export const CATEGORY_BASE_PRICES: Record<PlayerCategory, number> = {
   MARQUEE: 200,
   A: 150,
@@ -19,6 +27,14 @@ export const CATEGORY_BASE_PRICES: Record<PlayerCategory, number> = {
   C: 75,
   D: 50,
 };
+
+export interface PlayerSetCategoryCounts {
+  MARQUEE: number;
+  A: number;
+  B: number;
+  C: number;
+  D: number;
+}
 
 export interface PlayerSet {
   id: string;
@@ -29,6 +45,8 @@ export interface PlayerSet {
   created_at: string;
   updated_at: string;
   player_count?: number;
+  category_counts?: PlayerSetCategoryCounts;
+  preview_images?: string[];
 }
 
 export interface Player {
@@ -106,7 +124,7 @@ export interface PlayerFormInput {
   best_bowling?: string | null;
   three_wicket_hauls?: number | null;
 
-  // Wicket-Keeping Statistics
+  // Keeping Statistics
   catches?: number | null;
   stumpings?: number | null;
 }

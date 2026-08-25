@@ -1,7 +1,7 @@
 // src/lib/types/room.ts
 // Phase 5 Room & Team Management Types for Mega Auction V1
 
-export type RoomStatus = 'OPEN' | 'LOCKED' | 'COMPLETED' | 'CANCELLED';
+export type RoomStatus = 'OPEN' | 'LOCKED' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED';
 export type ParticipantRole = 'HOST' | 'MEMBER' | 'SPECTATOR';
 export type AuctionStatus = 'LOBBY' | 'READY' | 'STARTING' | 'IN_PROGRESS' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
 
@@ -26,6 +26,7 @@ export interface Room {
   settings: RoomSettings;
   created_at: string;
   updated_at: string;
+  last_activity_at?: string;
   // Joined relations
   host_profile?: {
     id: string;
@@ -75,6 +76,7 @@ export interface Team {
 
 export interface CreateRoomInput {
   name: string;
+  code: string;
   player_set_id: string;
   default_purse: number;
   timer_duration_seconds: number;
@@ -86,6 +88,7 @@ export interface CreateRoomInput {
   team_short_name: string;
   team_color: string;
   bot_count?: number;
+  bot_difficulty?: string;
 }
 
 export interface JoinRoomInput {

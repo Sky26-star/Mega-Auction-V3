@@ -3,13 +3,15 @@
 // src/components/layout/navbar.tsx
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { getCurrentProfile, signOutUser } from '@/lib/auth';
 import type { Profile } from '@/lib/types/auth';
-import { Gavel, LogOut, LayoutDashboard, LogIn, UserPlus } from 'lucide-react';
+import { Gavel, LogOut, LayoutDashboard, LogIn, UserPlus, Users } from 'lucide-react';
 
 export function Navbar() {
   const router = useRouter();
+  const params = useParams();
+  const roomId = params?.id as string | undefined;
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -52,11 +54,30 @@ export function Navbar() {
         </Link>
 
         {/* Right Nav Items */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-4 overflow-x-auto max-w-[60vw] scrollbar-hide">
           {isLoading ? (
-            <div className="w-24 h-8 bg-[#141917] rounded-lg animate-pulse border border-[#2A312D]" />
+            <div className="w-24 h-8 bg-[#141917] rounded-lg animate-pulse border border-[#2A312D] shrink-0" />
           ) : profile ? (
             <div className="flex items-center space-x-3">
+              {roomId && (
+                <>
+                  <Link
+                    href={`/rooms/${roomId}/squad`}
+                    className="flex items-center space-x-1.5 text-xs font-bold text-[#F3F4F1] hover:text-[#E4B93F] px-3 py-2 rounded-lg hover:bg-[#181E1A] border border-transparent hover:border-[#2A312D] transition-all uppercase tracking-wider"
+                  >
+                    <Users className="w-4 h-4 text-[#C9A227]" />
+                    <span>Squad</span>
+                  </Link>
+                  <Link
+                    href={`/rooms/${roomId}/stats`}
+                    className="flex items-center space-x-1.5 text-xs font-bold text-[#F3F4F1] hover:text-[#E4B93F] px-3 py-2 rounded-lg hover:bg-[#181E1A] border border-transparent hover:border-[#2A312D] transition-all uppercase tracking-wider"
+                  >
+                    <svg className="w-4 h-4 text-[#C9A227]" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+                    <span>Stats</span>
+                  </Link>
+                </>
+              )}
+
               <Link
                 href="/dashboard"
                 className="flex items-center space-x-1.5 text-xs font-bold text-[#F3F4F1] hover:text-[#E4B93F] px-3 py-2 rounded-lg hover:bg-[#181E1A] border border-transparent hover:border-[#2A312D] transition-all uppercase tracking-wider"

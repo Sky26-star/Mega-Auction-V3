@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/check-port.js && next dev -p 3000",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -38,7 +38,7 @@
     "zustand": "^5.0.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.0",
+    "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.0.1",
     "@types/node": "^20.17.6",
@@ -52,6 +52,7 @@
     "jsdom": "^25.0.1",
     "pg": "^8.23.0",
     "postcss": "^8.4.49",
+    "react-test-renderer": "^18.3.1",
     "tailwindcss": "^3.4.15",
     "typescript": "^5.6.3",
     "vitest": "^2.1.5"

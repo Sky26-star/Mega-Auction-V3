@@ -40,16 +40,17 @@ describe('Phase 5 — Room & Team Unit Test Suite', () => {
   describe('createRoomSchema (Phase 5B)', () => {
     it('validates a valid room & host franchise creation payload', () => {
       const payload = {
-        name: 'IPL 2026 Grand Auction',
+        name: 'Mega Auction',
+        code: 'ABC123',
         player_set_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
         default_purse: 1000,
         timer_duration_seconds: 15,
         min_bid_increment: 5,
         max_squad_size: 25,
         max_overseas: 8,
-        team_name: 'Royal Challengers',
-        team_short_name: 'RCB',
-        team_color: '#EF4444',
+        team_name: 'Mumbai Indians',
+        team_short_name: 'MI',
+        team_color: '#2600FD',
       };
       const result = createRoomSchema.safeParse(payload);
       expect(result.success).toBe(true);
@@ -64,9 +65,9 @@ describe('Phase 5 — Room & Team Unit Test Suite', () => {
         min_bid_increment: 5,
         max_squad_size: 25,
         max_overseas: 8,
-        team_name: 'Royal Challengers',
-        team_short_name: 'RCB',
-        team_color: '#EF4444',
+        team_name: 'Mumbai Indians',
+        team_short_name: 'MI',
+        team_color: '#1D00F9',
       });
       expect(result.success).toBe(false);
     });
@@ -80,9 +81,9 @@ describe('Phase 5 — Room & Team Unit Test Suite', () => {
         min_bid_increment: 5,
         max_squad_size: 25,
         max_overseas: 8,
-        team_name: 'Royal Challengers',
-        team_short_name: 'RCB',
-        team_color: '#EF4444',
+        team_name: 'Mumbai Indians',
+        team_short_name: 'MI',
+        team_color: '#2600FD',
       });
       expect(resultTooLow.success).toBe(false);
 
@@ -94,9 +95,9 @@ describe('Phase 5 — Room & Team Unit Test Suite', () => {
         min_bid_increment: 5,
         max_squad_size: 25,
         max_overseas: 8,
-        team_name: 'Royal Challengers',
-        team_short_name: 'RCB',
-        team_color: '#EF4444',
+        team_name: 'Mumbai Indians',
+        team_short_name: 'MI',
+        team_color: '#2600FD',
       });
       expect(resultTooHigh.success).toBe(false);
     });
@@ -110,9 +111,9 @@ describe('Phase 5 — Room & Team Unit Test Suite', () => {
         min_bid_increment: 5,
         max_squad_size: 25,
         max_overseas: 8,
-        team_name: 'Royal Challengers',
-        team_short_name: 'RCB',
-        team_color: '#EF4444',
+        team_name: 'Mumbai Indians',
+        team_short_name: 'MI',
+        team_color: '#2600FD',
       });
       expect(result.success).toBe(false);
     });
@@ -237,6 +238,7 @@ describe('Phase 5 — Room & Team Unit Test Suite', () => {
     it('validates bot_count inside createRoomSchema', () => {
       const validPayload = {
         name: 'Bot Test Room',
+        code: 'BOT123',
         player_set_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
         default_purse: 100,
         timer_duration_seconds: 15,

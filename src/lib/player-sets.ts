@@ -2,7 +2,7 @@
 // Supabase Client Service Operations for Player Sets & Players (RLS Enforcement - V2)
 
 import { createClient as createBrowserClient } from './supabase/client';
-import type { PlayerSet, Player, PlayerSetFormInput, PlayerFormInput } from './types/player-set';
+import type { PlayerSet, Player, PlayerSetFormInput, PlayerFormInput, PlayerSetCategoryCounts } from './types/player-set';
 
 function formatPlayerPayload(p: PlayerFormInput, playerSetId?: string) {
   const is_overseas = p.country
@@ -46,6 +46,30 @@ function formatPlayerPayload(p: PlayerFormInput, playerSetId?: string) {
   };
 }
 
+function computeSetCategoryDistribution(rawPlayers: Array<{ category: string; image_url: string | null; name: string }>) {
+  const count = rawPlayers.length;
+  const category_counts: PlayerSetCategoryCounts = {
+    MARQUEE: 0,
+    A: 0,
+    B: 0,
+    C: 0,
+    D: 0,
+  };
+
+  const preview_images: string[] = [];
+
+  rawPlayers.forEach((p) => {
+    if (p.category && category_counts[p.category as keyof PlayerSetCategoryCounts] !== undefined) {
+      category_counts[p.category as keyof PlayerSetCategoryCounts]++;
+    }
+    if (p.image_url && preview_images.length < 4) {
+      preview_images.push(p.image_url);
+    }
+  });
+
+  return { count, category_counts, preview_images };
+}
+
 /**
  * Fetch all player sets accessible by the authenticated user.
  */
@@ -56,7 +80,7 @@ export async function getPlayerSets(): Promise<PlayerSet[]> {
     .from('player_sets')
     .select(`
       *,
-      players (count)
+      players (category, image_url, name)
     `)
     .order('created_at', { ascending: false });
 
@@ -65,16 +89,20 @@ export async function getPlayerSets(): Promise<PlayerSet[]> {
   }
 
   return (playerSets || []).map((ps: any) => {
-    const count = Array.isArray(ps.players) && ps.players[0] ? (ps.players[0] as { count: number }).count : 0;
+    const rawPlayers = Array.isArray(ps.players) ? ps.players : [];
+    const { count, category_counts, preview_images } = computeSetCategoryDistribution(rawPlayers);
+
     return {
       ...ps,
       player_count: count,
+      category_counts,
+      preview_images,
     };
   }) as PlayerSet[];
 }
 
 /**
- * Fetch a single player set by ID with actual player count.
+ * Fetch a single player set by ID with actual player count & category counts.
  */
 export async function getPlayerSetById(id: string): Promise<PlayerSet | null> {
   const supabase = createBrowserClient();
@@ -83,7 +111,7 @@ export async function getPlayerSetById(id: string): Promise<PlayerSet | null> {
     .from('player_sets')
     .select(`
       *,
-      players (count)
+      players (category, image_url, name)
     `)
     .eq('id', id)
     .single();
@@ -92,11 +120,14 @@ export async function getPlayerSetById(id: string): Promise<PlayerSet | null> {
     return null;
   }
 
-  const count = Array.isArray(data.players) && data.players[0] ? (data.players[0] as { count: number }).count : 0;
+  const rawPlayers = Array.isArray(data.players) ? data.players : [];
+  const { count, category_counts, preview_images } = computeSetCategoryDistribution(rawPlayers);
 
   return {
     ...data,
     player_count: count,
+    category_counts,
+    preview_images,
   } as PlayerSet;
 }
 
@@ -129,6 +160,8 @@ export async function createPlayerSet(input: PlayerSetFormInput): Promise<Player
   return {
     ...data,
     player_count: 0,
+    category_counts: { MARQUEE: 0, A: 0, B: 0, C: 0, D: 0 },
+    preview_images: [],
   } as PlayerSet;
 }
 
@@ -157,6 +190,8 @@ export async function updatePlayerSet(id: string, input: PlayerSetFormInput): Pr
   return {
     ...data,
     player_count: 0,
+    category_counts: { MARQUEE: 0, A: 0, B: 0, C: 0, D: 0 },
+    preview_images: [],
   } as PlayerSet;
 }
 

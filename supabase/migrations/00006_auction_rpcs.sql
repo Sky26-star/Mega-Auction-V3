@@ -137,6 +137,7 @@ DECLARE
   v_unsold_lot RECORD;
   v_new_lot_id UUID;
   v_new_lot_index INT;
+  v_next_lot_index INT;
   v_cloned_count INT := 0;
   v_timer_sec INT;
   v_seq INT;
@@ -215,7 +216,7 @@ BEGIN
       ORDER BY al.lot_index ASC
     LOOP
       v_new_lot_id := gen_random_uuid();
-      
+
       -- Clone UNSOLD lot as a NEW row in auction_lots
       -- Round 2 base_price = GREATEST(1, FLOOR(original_base_price * 0.5))
       INSERT INTO public.auction_lots (
@@ -343,15 +344,15 @@ BEGIN
     SELECT b.*, ae.sequence, (ae.payload->>'timer_expires_at')::timestamptz AS timer_expires_at
     INTO v_existing_bid
     FROM public.bids b
-    LEFT JOIN public.auction_events ae 
-      ON ae.auction_id = b.auction_id 
+    LEFT JOIN public.auction_events ae
+      ON ae.auction_id = b.auction_id
      AND (ae.payload->>'bid_id')::uuid = b.id
     WHERE b.request_id = v_request_id;
 
     IF v_existing_bid.id IS NOT NULL THEN
       -- Parameter Conflict Check
-      IF v_existing_bid.auction_id != p_auction_id 
-         OR v_existing_bid.team_id != v_target_team_id 
+      IF v_existing_bid.auction_id != p_auction_id
+         OR v_existing_bid.team_id != v_target_team_id
          OR v_existing_bid.amount != v_target_amount THEN
         RAISE EXCEPTION 'IDEMPOTENCY_PARAMETER_MISMATCH: request_id % was previously submitted with different parameters', v_request_id;
       END IF;
@@ -411,7 +412,7 @@ BEGIN
   -- 2. BOT CANDIDATE SELECTION & BOT IDEMPOTENCY (Post-Lock Fresh State)
   IF p_is_bot AND v_target_team_id IS NULL THEN
     -- Calculate minimum required bid amount from locked lot
-    v_min_required_bid := CASE WHEN v_lot.current_bid = 0 THEN v_lot.base_price ELSE v_lot.current_bid + v_min_increment END;
+    v_min_required_bid := CASE WHEN v_lot.highest_bidder_team_id IS NULL OR v_lot.current_bid = 0 THEN v_lot.base_price ELSE v_lot.current_bid + v_min_increment END;
 
     -- Select top eligible bot team for this lot
     SELECT bls.team_id INTO v_target_team_id
@@ -443,14 +444,14 @@ BEGIN
     SELECT b.*, ae.sequence, (ae.payload->>'timer_expires_at')::timestamptz AS timer_expires_at
     INTO v_existing_bid
     FROM public.bids b
-    LEFT JOIN public.auction_events ae 
-      ON ae.auction_id = b.auction_id 
+    LEFT JOIN public.auction_events ae
+      ON ae.auction_id = b.auction_id
      AND (ae.payload->>'bid_id')::uuid = b.id
     WHERE b.request_id = v_request_id;
 
     IF v_existing_bid.id IS NOT NULL THEN
-      IF v_existing_bid.auction_id != p_auction_id 
-         OR v_existing_bid.team_id != v_target_team_id 
+      IF v_existing_bid.auction_id != p_auction_id
+         OR v_existing_bid.team_id != v_target_team_id
          OR v_existing_bid.amount != v_target_amount THEN
         RAISE EXCEPTION 'IDEMPOTENCY_PARAMETER_MISMATCH: request_id % was previously submitted with different parameters', v_request_id;
       END IF;
@@ -490,7 +491,12 @@ BEGIN
   SELECT p.* INTO v_player FROM public.players p WHERE p.id = v_lot.player_id;
 
   -- Validation Checks
-  v_min_required_bid := CASE WHEN v_lot.current_bid = 0 THEN v_lot.base_price ELSE v_lot.current_bid + v_min_increment END;
+  SELECT COUNT(*) INTO v_bid_number FROM public.bids WHERE lot_id = v_lot.id AND is_valid = true;
+  IF v_bid_number = 0 OR v_lot.highest_bidder_team_id IS NULL THEN
+    v_min_required_bid := v_lot.base_price;
+  ELSE
+    v_min_required_bid := v_lot.current_bid + v_min_increment;
+  END IF;
   IF v_target_amount < v_min_required_bid THEN
     RETURN jsonb_build_object('success', false, 'error', 'BID_TOO_LOW', 'min_required', v_min_required_bid);
   END IF;
@@ -544,8 +550,8 @@ BEGIN
     WHERE b.request_id = v_request_id;
 
     -- Compare parameters for conflict
-    IF v_existing_bid.auction_id != p_auction_id 
-       OR v_existing_bid.team_id != v_target_team_id 
+    IF v_existing_bid.auction_id != p_auction_id
+       OR v_existing_bid.team_id != v_target_team_id
        OR v_existing_bid.amount != v_target_amount THEN
       RAISE EXCEPTION 'IDEMPOTENCY_PARAMETER_MISMATCH: request_id % was previously submitted with different parameters', v_request_id;
     END IF;

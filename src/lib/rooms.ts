@@ -4,6 +4,7 @@
 import { createClient } from './supabase/client';
 import { getCurrentProfile } from './auth';
 import { getUniqueBotIdentities } from './bots';
+import { normalizePurseToLakhs } from '@/lib/auction/units';
 import type {
   Room,
   RoomParticipant,
@@ -214,17 +215,19 @@ export async function createRoom(input: CreateRoomInput): Promise<Room> {
     player_order: 'CATEGORY',
     bot_count: requestedBotCount,
     bots: botPayload,
+    bot_difficulty: input.bot_difficulty,
   };
 
   // 2. Call RPC create_room_with_team()
   const { data, error } = await supabase.rpc('create_room_with_team', {
+    p_room_code: input.code,
     p_room_name: input.name,
     p_room_settings: roomSettings,
     p_player_set_id: input.player_set_id,
     p_team_name: input.team_name,
     p_team_short_name: input.team_short_name.toUpperCase(),
     p_team_color: input.team_color,
-    p_default_purse: input.default_purse,
+    p_default_purse: normalizePurseToLakhs(input.default_purse),
   });
 
   if (error) {
@@ -349,7 +352,24 @@ export async function getRoomParticipants(roomId: string): Promise<RoomParticipa
 }
 
 /**
- * Fetches all teams for an auction.
+ * Fetches current active auction row by room_id (since rooms table has no auction_id column).
+ */
+export async function getAuctionByRoomId(roomId: string) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('auctions')
+    .select('*')
+    .eq('room_id', roomId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/**
+ * Fetches all teams for an auction by auctionId.
  */
 export async function getAuctionTeams(auctionId: string): Promise<Team[]> {
   const supabase = createClient();
@@ -361,6 +381,15 @@ export async function getAuctionTeams(auctionId: string): Promise<Team[]> {
 
   if (error) throw new Error(error.message);
   return (data || []) as Team[];
+}
+
+/**
+ * Fetches all teams for a room's active auction using auctions.room_id -> rooms.id.
+ */
+export async function getAuctionTeamsByRoomId(roomId: string): Promise<Team[]> {
+  const auction = await getAuctionByRoomId(roomId);
+  if (!auction) return [];
+  return getAuctionTeams(auction.id);
 }
 
 export interface UpdateRoomInput {

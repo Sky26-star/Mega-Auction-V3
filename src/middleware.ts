@@ -1,10 +1,21 @@
-// src/middleware.ts
-
-import { type NextRequest } from 'next/server';
-import { updateSession } from './lib/supabase/middleware';
+import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
-  return await updateSession(request);
+  if (process.env.NEXT_PHASE === 'phase-production-build') {
+    return NextResponse.next();
+  }
+
+  const path = request.nextUrl.pathname;
+  if (path.startsWith('/_next') || path.startsWith('/api') || path.includes('.')) {
+    return NextResponse.next();
+  }
+
+  try {
+    const { updateSession } = await import('./lib/supabase/middleware');
+    return await updateSession(request);
+  } catch {
+    return NextResponse.next();
+  }
 }
 
 export const config = {

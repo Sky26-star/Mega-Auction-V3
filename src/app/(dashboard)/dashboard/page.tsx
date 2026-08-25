@@ -95,21 +95,25 @@ export default async function DashboardPage() {
 
       {/* Main Content Area — Viewport Balanced 1440x900 Grid */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6 relative z-10 my-auto">
-        
+
         {/* 1. COMPACT WELCOME HEADER */}
         <div className="p-6 sm:p-7 rounded-2xl bg-[#141917] border-2 border-[#2A312D] shadow-2xl shadow-black/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 relative overflow-hidden group">
           <div className="absolute top-0 left-0 w-1.5 h-full bg-[#C9A227]" />
-          
+
           <div className="pl-2">
             <div className="flex items-center space-x-2.5 mb-1.5">
               <span className="text-2xl sm:text-3xl font-black font-display uppercase tracking-tight text-[#F3F4F1]">
                 WELCOME BACK, <span className="text-[#C9A227]">{displayName.toUpperCase()}</span> 👋
               </span>
               {profile?.is_admin && (
-                <span className="px-2.5 py-0.5 rounded-full bg-[#C9A227]/15 text-[#E4B93F] border border-[#C9A227]/40 text-[10px] font-extrabold uppercase font-mono-numbers flex items-center gap-1">
+                <Link
+                  href="/admin"
+                  className="px-2.5 py-0.5 rounded-full bg-[#C9A227]/15 text-[#E4B93F] border border-[#C9A227]/40 text-[10px] font-extrabold uppercase font-mono-numbers flex items-center gap-1 hover:bg-[#C9A227]/30 transition-all shadow-md"
+                  title="Open Platform Admin Console"
+                >
                   <ShieldCheck className="w-3 h-3 text-[#C9A227]" />
-                  ADMIN
-                </span>
+                  ADMIN CONSOLE
+                </Link>
               )}
             </div>
             <p className="text-xs sm:text-sm text-[#9CA6A0] leading-relaxed">
@@ -128,7 +132,7 @@ export default async function DashboardPage() {
 
         {/* 2. PRIMARY ACTION AREA (2 DOMINANT CARDS) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
+
           {/* CREATE AUCTION ROOM CARD */}
           <div className="p-6 sm:p-7 rounded-2xl bg-[#141917] border-2 border-[#2A312D] hover:border-[#C9A227]/60 transition-all duration-300 shadow-2xl shadow-black/80 flex flex-col justify-between group">
             <div>
@@ -320,13 +324,23 @@ export default async function DashboardPage() {
 
                         {/* Action Link */}
                         <td className="py-3.5 px-3 text-right">
-                          <Link
-                            href={`/rooms/${room.id}`}
-                            className="inline-flex items-center space-x-1 text-xs font-bold text-[#E4B93F] hover:text-white px-2.5 py-1 rounded bg-[#0B0F0D] border border-[#2A312D] hover:border-[#C9A227]/40 transition-all"
-                          >
-                            <span>ENTER</span>
-                            <ArrowRight className="w-3 h-3" />
-                          </Link>
+                          {room.status === 'COMPLETED' ? (
+                            <Link
+                              href={`/rooms/${room.id}/summary`}
+                              className="inline-flex items-center space-x-1 text-xs font-bold text-emerald-400 hover:text-white px-2.5 py-1 rounded bg-[#0B0F0D] border border-emerald-500/40 hover:border-emerald-400 transition-all"
+                            >
+                              <span>SUMMARY</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </Link>
+                          ) : (
+                            <Link
+                              href={`/rooms/${room.id}`}
+                              className="inline-flex items-center space-x-1 text-xs font-bold text-[#E4B93F] hover:text-white px-2.5 py-1 rounded bg-[#0B0F0D] border border-[#2A312D] hover:border-[#C9A227]/40 transition-all"
+                            >
+                              <span>ENTER</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </Link>
+                          )}
                         </td>
                       </tr>
                     );

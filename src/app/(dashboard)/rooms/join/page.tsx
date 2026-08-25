@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Navbar } from '@/components/layout/navbar';
 import { lookupRoomByCode, joinRoomWithTeam } from '@/lib/rooms';
+import { loadAuthoritativeRoomAuctionState } from '@/lib/auction/state-manager';
 import { joinRoomWithTeamSchema } from '@/lib/validations/room';
 import type { Room } from '@/lib/types/room';
 import { RoomCodeInput } from '@/components/rooms/room-code-input';
@@ -159,14 +160,19 @@ function JoinRoomContent() {
     setIsJoining(true);
     try {
       const result = await joinRoomWithTeam(code, validation.data);
-      router.push(`/rooms/${result.room_id}`);
+      const activeState = await loadAuthoritativeRoomAuctionState(result.room_id);
+      if (activeState?.auctionStatus === 'LIVE') {
+        router.push(`/rooms/${result.room_id}/auction`);
+      } else {
+        router.push(`/rooms/${result.room_id}`);
+      }
     } catch (err: unknown) {
       if (err instanceof Error) {
         setJoinError(err.message);
       } else {
         setJoinError('Failed to join auction lobby.');
       }
-    } fontally: {
+    } finally {
       if (isMountedRef.current) {
         setIsJoining(false);
       }
@@ -233,7 +239,7 @@ function JoinRoomContent() {
 
       {/* Main Content Container — Desktop Balanced 2-Column Split (55% Left / 45% Right) */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-10 flex flex-col justify-center relative z-10 my-auto">
-        
+
         {/* Navigation & Header Section */}
         <div className="mb-6 space-y-3">
           <Link
@@ -267,7 +273,7 @@ function JoinRoomContent() {
           {/* LEFT PANEL — ROOM CODE & FRANCHISE REGISTRATION (Col 7 - 55%) */}
           <div className="lg:col-span-7 space-y-6">
             <form onSubmit={handleJoinSafe} className="space-y-6" id="join-room-form">
-              
+
               {/* Join Error Alert */}
               {joinError && (
                 <div

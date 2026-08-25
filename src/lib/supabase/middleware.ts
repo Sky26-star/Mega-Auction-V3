@@ -34,11 +34,14 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Protected route redirects
+  const isBuild = process.env.NEXT_PHASE === 'phase-production-build';
   const isPublicRoute =
+    isBuild ||
     request.nextUrl.pathname === '/' ||
     request.nextUrl.pathname.startsWith('/login') ||
     request.nextUrl.pathname.startsWith('/signup') ||
-    request.nextUrl.pathname.startsWith('/api/health');
+    request.nextUrl.pathname.startsWith('/api') ||
+    request.nextUrl.pathname.startsWith('/_next');
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();

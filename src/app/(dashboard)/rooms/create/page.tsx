@@ -115,6 +115,7 @@ export default function CreateRoomPage() {
     // Note: min_bid_increment = 50 is provided ONLY as a backward-compatible placeholder for existing RPC schema
     const validation = createRoomSchema.safeParse({
       name,
+      code: roomCode,
       player_set_id: playerSetId,
       default_purse: defaultPurse,
       timer_duration_seconds: timerDuration,
@@ -125,6 +126,7 @@ export default function CreateRoomPage() {
       team_short_name: teamShortName,
       team_color: teamColor,
       bot_count: activeBotCount,
+      bot_difficulty: botDifficulty,
     });
 
     if (!validation.success) {
@@ -174,7 +176,7 @@ export default function CreateRoomPage() {
 
       {/* Main Content Container — Desktop Balanced 2-Column Split */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-10 flex flex-col justify-center relative z-10 my-auto">
-        
+
         {/* Navigation & Header Section */}
         <div className="mb-6 space-y-3">
           <Link
@@ -208,7 +210,7 @@ export default function CreateRoomPage() {
           {/* LEFT CONFIGURATION PANEL (Col 7 - 60%) */}
           <div className="lg:col-span-7 space-y-6">
             <form onSubmit={handleSubmit} className="space-y-6" id="create-room-form">
-              
+
               {/* Form Error Alert */}
               {formError && (
                 <div
@@ -461,7 +463,7 @@ export default function CreateRoomPage() {
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  
+
                   {/* 1. STARTING PURSE (CRORES) */}
                   <AuctionStepper
                     id="starting-purse-stepper"
